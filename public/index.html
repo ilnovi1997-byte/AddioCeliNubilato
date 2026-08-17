@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Dashboard Evento</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+    <header class="app-header">
+        <span id="userName">Caricamento...</span>
+        <span id="userPoints" class="badge">0 Punti</span>
+    </header>
+
+    <nav class="nav-tabs">
+        <button class="active" onclick="switchTab('tasks')">Sfide</button>
+        <button onclick="switchTab('ranking')">Classifica</button>
+        <button onclick="switchTab('feed')">Live Feed</button>
+    </nav>
+
+    <main class="container">
+        <!-- Scheda Sfide -->
+        <section id="tab-tasks" class="tab-content active">
+            <h2>Sfide & Penitenze</h2>
+            <ul id="taskList" class="list"></ul>
+        </section>
+
+        <!-- Scheda Classifica -->
+        <section id="tab-ranking" class="tab-content">
+            <h2>Classifica Punti</h2>
+            <ol id="rankingList" class="list"></ol>
+        </section>
+
+        <!-- Scheda Feed -->
+        <section id="tab-feed" class="tab-content">
+            <div class="post-box">
+                <input type="text" id="postInput" placeholder="Scrivi un aggiornamento...">
+                <button id="sendPostBtn">Invia</button>
+            </div>
+            <div id="feedList"></div>
+        </section>
+    </main>
+
+    <script src="/js/app.js"></script>
+</body>
+</html>
