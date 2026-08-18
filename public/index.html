@@ -2,20 +2,37 @@
 <html lang="it">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Addio al Celibato - Accesso</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Addio al Celibato 🎉 | Accesso</title>
     <link rel="stylesheet" href="/css/style.css">
 </head>
-<body class="center-screen">
-    <div class="card">
-        <h1>Addio al Celibato 🎉</h1>
-        <p>Inserisci il tuo nome e un PIN per accedere o registrarti.</p>
-        <form id="loginForm">
-            <input type="text" id="name" placeholder="Il tuo Nome / Soprannome" required>
-            <input type="password" id="pin" placeholder="PIN a 4 cifre" maxlength="4" required>
-            <button type="submit">Entra nel Gruppo</button>
+<body class="auth-body">
+    <div class="auth-card">
+        <div class="header-logo">
+            <span class="party-emoji">🍻</span>
+            <h1>Bachelor Party</h1>
+            <p class="subtitle">Inserisci il tuo nome e un PIN a 4 cifre per accedere o registrarti.</p>
+        </div>
+
+        <form id="loginForm" class="auth-form">
+            <div class="form-group">
+                <label for="name">Nome o Soprannome</label>
+                <input type="text" id="name" placeholder="Es. Marco, Lo Sposo..." autocomplete="off" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="pin">PIN di Sicurezza (4 cifre)</label>
+                <input type="password" id="pin" pattern="[0-9]{4}" inputmode="numeric" maxlength="4" placeholder="1234" required>
+            </div>
+
+            <div id="errorMsg" class="error-msg"></div>
+
+            <button type="submit" class="btn-primary" id="submitBtn">Entra nel Gruppo 🚀</button>
         </form>
+        
+        <p class="footer-hint">Se è il tuo primo accesso, il PIN inserito sarà memorizzato per le sessioni successive.</p>
     </div>
+
     <script src="/js/auth.js"></script>
 </body>
 </html>

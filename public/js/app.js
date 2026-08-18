@@ -1,94 +1,149 @@
 const socket = io();
-const user = JSON.parse(localStorage.getItem("party_user") || "null");
+const localUser = JSON.parse(localStorage.getItem("party_user") || "null");
 
-if (!user) {
+if (!localUser) {
   window.location.href = "/index.html";
 }
 
-document.getElementById("userName").textContent = user.name;
+let currentUser = localUser;
+let currentTasks = [];
+let currentUsers = [];
+let currentFeed = [];
 
-// Ricezione dati iniziali
+document.getElementById("userName").textContent = currentUser.name;
+document.getElementById("myPoints").textContent = currentUser.points || 0;
+document.getElementById("userRole").textContent =
+  currentUser.role === "groom" ? "👑 Lo Sposo" : "Membro";
+if (currentUser.role === "groom") {
+  document.getElementById("avatarIcon").textContent = "🤴";
+}
+
 socket.on("init_data", (data) => {
-  renderTasks(data.tasks);
-  renderRanking(data.users);
-  renderFeed(data.feed);
+  currentTasks = data.tasks;
+  currentUsers = data.users;
+  currentFeed = data.feed;
+
+  renderTasks();
+  renderRanking();
+  renderFeed();
 });
 
-// Aggiornamenti real-time
-socket.on("update_tasks", (tasks) => renderTasks(tasks));
+socket.on("update_tasks", (tasks) => {
+  currentTasks = tasks;
+  renderTasks();
+});
+
 socket.on("update_scoreboard", (users) => {
-  renderRanking(users);
-  const me = users.find((u) => u.id === user.id);
-  if (me)
-    document.getElementById("userPoints").textContent = `${me.points} Punti`;
-});
-socket.on("broadcast_post", (post) => {
-  const feed = document.getElementById("feedList");
-  const el = document.createElement("div");
-  el.className = "post-item";
-  el.innerHTML = `<strong>${post.user}:</strong> ${post.text} <small>${post.time}</small>`;
-  feed.prepend(el);
+  currentUsers = users;
+  renderRanking();
+  const me = users.find((u) => u.id === currentUser.id);
+  if (me) {
+    currentUser.points = me.points;
+    localStorage.setItem("party_user", JSON.stringify(currentUser));
+    document.getElementById("myPoints").textContent = me.points;
+  }
 });
 
-function renderTasks(tasks) {
-  const list = document.getElementById("taskList");
-  list.innerHTML = tasks
+socket.on("broadcast_post", (post) => {
+  currentFeed.unshift(post);
+  renderFeed();
+});
+
+function renderTasks() {
+  const container = document.getElementById("taskList");
+  container.innerHTML = currentTasks
     .map((t) => {
-      const done = t.completedBy.includes(user.id);
+      const isDone = t.completedBy.includes(currentUser.id);
       return `
-            <li class="card-item ${done ? "done" : ""}">
-                <div>
-                    <strong>${t.title}</strong>
-                    <p>+${t.points} pt</p>
+            <div class="task-card ${isDone ? "completed" : ""}">
+                <div class="task-content">
+                    <h4>${t.title}</h4>
+                    <span class="task-points">+${t.points} PUNTI</span>
                 </div>
-                <button onclick="completeTask(${t.id})" ${done ? "disabled" : ""}>
-                    ${done ? "Fatto ✓" : "Completa"}
+                <button class="btn-task" ${isDone ? "disabled" : ""} onclick="completeTask(${t.id})">
+                    ${isDone ? "Fatto ✓" : "Completa"}
                 </button>
-            </li>
+            </div>
         `;
     })
     .join("");
 }
 
-function renderRanking(users) {
-  const list = document.getElementById("rankingList");
-  const sorted = [...users].sort((a, b) => b.points - a.points);
-  list.innerHTML = sorted
-    .map(
-      (u) => `<li><span>${u.name}</span> <strong>${u.points} pt</strong></li>`,
-    )
+function renderRanking() {
+  const container = document.getElementById("rankingList");
+  const sorted = [...currentUsers].sort((a, b) => b.points - a.points);
+
+  container.innerHTML = sorted
+    .map((u, idx) => {
+      const medals = ["🥇", "🥈", "🥉"];
+      const medal = idx < 3 ? medals[idx] : `#${idx + 1}`;
+      const isMe = u.id === currentUser.id;
+
+      return `
+            <div class="ranking-card ${idx === 0 ? "rank-1" : ""}" style="${isMe ? "border-color: #ff007a;" : ""}">
+                <span class="rank-position">${medal}</span>
+                <span class="rank-name">${u.name} ${u.role === "groom" ? "👑" : ""} ${isMe ? "(Tu)" : ""}</span>
+                <span class="rank-points">${u.points} pt</span>
+            </div>
+        `;
+    })
     .join("");
 }
 
-function renderFeed(feed) {
-  const list = document.getElementById("feedList");
-  list.innerHTML = feed
+function renderFeed() {
+  const container = document.getElementById("feedList");
+  container.innerHTML = currentFeed
     .map(
-      (p) =>
-        `<div class="post-item"><strong>${p.user}:</strong> ${p.text} <small>${p.time}</small></div>`,
+      (p) => `
+        <div class="feed-card">
+            <div class="feed-card-header">
+                <span class="feed-user">${p.user}</span>
+                <span>${p.time}</span>
+            </div>
+            <div class="feed-text">${p.text}</div>
+        </div>
+    `,
     )
     .join("");
 }
 
 window.completeTask = (taskId) => {
-  socket.emit("complete_task", { userId: user.id, taskId });
+  socket.emit("complete_task", {
+    userId: currentUser.id,
+    taskId: taskId,
+  });
 };
 
-document.getElementById("sendPostBtn").onclick = () => {
-  const input = document.getElementById("postInput");
-  if (input.value.trim()) {
-    socket.emit("new_post", { user: user.name, text: input.value });
-    input.value = "";
-  }
+document.getElementById("feedSendBtn").addEventListener("click", sendFeedPost);
+document.getElementById("feedInput").addEventListener("keypress", (e) => {
+  if (e.key === "Enter") sendFeedPost();
+});
+
+function sendFeedPost() {
+  const input = document.getElementById("feedInput");
+  const text = input.value.trim();
+  if (!text) return;
+
+  socket.emit("new_post", {
+    user: currentUser.name,
+    text: text,
+  });
+  input.value = "";
+}
+
+window.switchTab = (tabName) => {
+  document
+    .querySelectorAll(".tab-panel")
+    .forEach((p) => p.classList.remove("active"));
+  document
+    .querySelectorAll(".nav-item")
+    .forEach((btn) => btn.classList.remove("active"));
+
+  document.getElementById(`tab-${tabName}`).classList.add("active");
+  event.currentTarget.classList.add("active");
 };
 
-window.switchTab = (tabId) => {
-  document
-    .querySelectorAll(".tab-content")
-    .forEach((el) => el.classList.remove("active"));
-  document
-    .querySelectorAll(".nav-tabs button")
-    .forEach((el) => el.classList.remove("active"));
-  document.getElementById(`tab-${tabId}`).classList.add("active");
-  event.target.classList.add("active");
+window.logout = () => {
+  localStorage.removeItem("party_user");
+  window.location.href = "/index.html";
 };
