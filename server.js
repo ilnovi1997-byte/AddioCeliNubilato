@@ -145,6 +145,7 @@ app.use(express.static(path.join(__dirname, "public")));
 
 // Endpoint Proxy per servire foto e video da Google Drive in streaming diretto
 // Endpoint Proxy ottimizzato per streaming immagini e video da Google Drive
+// Endpoint Proxy ottimizzato per streaming immagini e video da Google Drive
 app.get("/api/media/:fileId", async (req, res) => {
   if (!driveClient) return res.status(503).send("Google Drive non configurato");
 
