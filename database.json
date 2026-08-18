@@ -1,0 +1,77 @@
+{
+  "teams": {
+    "Nubilers": {
+      "name": "Nubilers",
+      "color": "#ff007a",
+      "points": 0
+    },
+    "Celibers": {
+      "name": "Celibers",
+      "color": "#00d2ff",
+      "points": 0
+    }
+  },
+  "users": [
+    {
+      "id": "u_1787072348861_uqad",
+      "name": "AlBr",
+      "pin": "1234",
+      "team": "Nubilers",
+      "avatar": null,
+      "points": 0,
+      "role": "admin"
+    }
+  ],
+  "condemned": [
+    {
+      "id": 1787072501391,
+      "name": "Federica Barbuzza",
+      "nickname": "",
+      "role": "Sposa",
+      "team": "Nubilers",
+      "photo": "https://res.cloudinary.com/dbgbbonn/image/upload/v1787072500/addio_celibato/condannati/wnqn0ynhaht7vt4palyg.jpg",
+      "fitMode": "cover-top",
+      "imgHeight": "260px",
+      "description": "Federica Barbuzza nasce a Roma il 24/10/97. \r\nUna bella bambina con 43 di piede. \r\nMuove i suoi primi enormi passi però in terra Sicula. \r\nLì alla tenera età di 8 anni pronuncia la sua prima parola: \"No, non sugnu na pirsuna affittusa; Iu nun furmari facilmenti attaccamenti ê genti, etc...\". \r\nDecide a 21 anni di intraprendere un percorso universitario a Torino nella residenza Villa Claretta e nel tempo libero una tantum studiare qualcosa riguardo le lingue. \r\nDifatti l'inglese continua ad essere un tabù ma riesce comunque a trovare lavoro. \r\nAccetta la proposta di matrimonio di quel Santo di Pg. Giustamente, stupida sì ma mica fessa.",
+      "weakness": "-Inesistente Resistenza all'Alcool ma almeno fa uscire la sua versione figa           -Dice di saper guidare, mai verificato nei fatti       -Abile cuoca ma fa la pasta dissapita",
+      "quote": "\"Non sono Ubriaca\""
+    },
+    {
+      "id": 1787072536562,
+      "name": "Pierluigi De Vitis",
+      "nickname": "PG",
+      "role": "Sposo",
+      "team": "Celibers",
+      "photo": "https://res.cloudinary.com/dbgbbonn/image/upload/v1787072536/addio_celibato/condannati/uibqhoqkpdrsjhtkvz20.jpg",
+      "fitMode": "contain",
+      "imgHeight": "260px",
+      "description": "",
+      "weakness": "",
+      "quote": ""
+    }
+  ],
+  "itinerary": [],
+  "tasks": [
+    {
+      "id": 1,
+      "title": "Bevi uno shot senza usare le mani",
+      "points": 50
+    },
+    {
+      "id": 2,
+      "title": "Fai un brindisi imbarazzante allo sposo",
+      "points": 100
+    }
+  ],
+  "feed": [
+    {
+      "id": 1,
+      "user": "Sistema",
+      "avatar": null,
+      "text": "Benvenuti alla sfida Nubilers vs Celibers! 🔥",
+      "time": "18:00",
+      "team": null,
+      "media": null
+    }
+  ]
+}
