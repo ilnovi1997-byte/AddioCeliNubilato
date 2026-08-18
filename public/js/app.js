@@ -12,17 +12,34 @@ let currentFeed = [];
 let currentTeams = { Nubilers: { points: 0 }, Celibers: { points: 0 } };
 let selectedTaskId = null;
 
-// Setup Header
-document.getElementById("userName").textContent = currentUser.name;
-document.getElementById("myPoints").textContent = currentUser.points || 0;
-
-const badge = document.getElementById("userTeamBadge");
-badge.textContent = `${currentUser.team} ${currentUser.role === "groom" ? "👑" : ""}`;
-badge.className = `user-badge badge-${currentUser.team.toLowerCase()}`;
-
-if (currentUser.role === "admin") {
-  document.getElementById("adminTabBtn").style.display = "flex";
+// Helper per generare l'HTML dell'avatar
+function getAvatarHtml(avatarUrl, extraClass = "") {
+  if (avatarUrl) {
+    return `<img src="${avatarUrl}" class="avatar-img ${extraClass}" alt="Avatar">`;
+  }
+  return `<div class="avatar-fallback ${extraClass}">😎</div>`;
 }
+
+function updateHeaderUI() {
+  document.getElementById("userName").textContent = currentUser.name;
+  document.getElementById("myPoints").textContent = currentUser.points || 0;
+
+  const badge = document.getElementById("userTeamBadge");
+  badge.textContent = `${currentUser.team} ${currentUser.role === "groom" ? "👑" : ""}`;
+  badge.className = `user-badge badge-${currentUser.team.toLowerCase()}`;
+
+  const avatarContainer = document.getElementById("avatarContainer");
+  avatarContainer.innerHTML = `
+        ${getAvatarHtml(currentUser.avatar)}
+        <span class="avatar-edit-badge">📷</span>
+    `;
+
+  if (currentUser.role === "admin") {
+    document.getElementById("adminTabBtn").style.display = "flex";
+  }
+}
+
+updateHeaderUI();
 
 // Socket Events
 socket.on("init_data", (data) => {
@@ -51,14 +68,19 @@ socket.on("update_scoreboard", ({ teams, users }) => {
 
   const me = users.find((u) => u.id === currentUser.id);
   if (me) {
-    currentUser.points = me.points;
+    currentUser = me;
     localStorage.setItem("party_user", JSON.stringify(currentUser));
-    document.getElementById("myPoints").textContent = me.points;
+    updateHeaderUI();
   }
 });
 
 socket.on("broadcast_post", (post) => {
   currentFeed.unshift(post);
+  renderFeed();
+});
+
+socket.on("feed_updated", (updatedFeed) => {
+  currentFeed = updatedFeed;
   renderFeed();
 });
 
@@ -99,20 +121,20 @@ function renderRanking() {
 
       return `
             <div class="ranking-card team-border-${teamClass}" style="${isMe ? "outline: 2px solid #fff;" : ""}">
-                <span class="rank-position">#${idx + 1}</span>
-                <span class="rank-name">${u.name} <small>(${u.team || "N/D"})</small></span>
+                <div class="rank-left">
+                    <span class="rank-position">#${idx + 1}</span>
+                    ${getAvatarHtml(u.avatar, "avatar-small")}
+                    <div class="rank-details">
+                        <span class="rank-name">${u.name} ${isMe ? "(Tu)" : ""}</span>
+                        <small class="rank-team">${u.team || "N/D"}</small>
+                    </div>
+                </div>
                 <span class="rank-points">${u.points} pt</span>
             </div>
         `;
     })
     .join("");
 }
-
-// Ascolta l'aggiornamento del feed dopo un'eliminazione
-socket.on("feed_updated", (updatedFeed) => {
-  currentFeed = updatedFeed;
-  renderFeed();
-});
 
 function renderFeed() {
   const container = document.getElementById("feedList");
@@ -123,8 +145,6 @@ function renderFeed() {
       const teamTag = p.team
         ? `<span class="tag-${p.team.toLowerCase()}">[${p.team}]</span>`
         : "";
-
-      // Pulsante visibile SOLO se l'utente attuale è Admin
       const deleteBtn =
         currentUser.role === "admin"
           ? `<button class="btn-delete-post" onclick="deletePost(${p.id})">🗑️</button>`
@@ -150,7 +170,10 @@ function renderFeed() {
       return `
             <div class="feed-card ${p.team ? "feed-" + p.team.toLowerCase() : ""}">
                 <div class="feed-card-header">
-                    <span class="feed-user">${teamTag} ${p.user}</span>
+                    <div class="feed-user-box">
+                        ${getAvatarHtml(p.avatar, "avatar-tiny")}
+                        <span class="feed-user">${teamTag} ${p.user}</span>
+                    </div>
                     <div class="header-right">
                         <span>${p.time}</span>
                         ${deleteBtn}
@@ -164,17 +187,7 @@ function renderFeed() {
     .join("");
 }
 
-// Funzione richiamata dal pulsante elimina
-window.deletePost = (postId) => {
-  if (confirm("Sei sicuro di voler eliminare questo post dal feed?")) {
-    socket.emit("admin_delete_post", {
-      postId: postId,
-      adminId: currentUser.id,
-    });
-  }
-};
-
-// Gestione Modal Completamento Sfida & Upload
+// Modal Task
 window.openTaskModal = (taskId) => {
   const task = currentTasks.find((t) => t.id === taskId);
   if (!task) return;
@@ -184,11 +197,9 @@ window.openTaskModal = (taskId) => {
   document.getElementById("modalTaskPoints").textContent =
     `+${task.points} Punti per i ${currentUser.team}`;
 
-  // Reset input file e anteprima
   const mediaInput = document.getElementById("mediaInput");
   mediaInput.value = "";
   document.getElementById("mediaPreviewContainer").innerHTML = "";
-
   document.getElementById("taskModal").style.display = "flex";
 };
 
@@ -197,12 +208,10 @@ window.closeTaskModal = () => {
   selectedTaskId = null;
 };
 
-// Anteprima media caricato
 document.getElementById("mediaInput").addEventListener("change", function (e) {
   const file = e.target.files[0];
   const previewContainer = document.getElementById("mediaPreviewContainer");
   previewContainer.innerHTML = "";
-
   if (!file) return;
 
   const fileUrl = URL.createObjectURL(file);
@@ -213,7 +222,6 @@ document.getElementById("mediaInput").addEventListener("change", function (e) {
   }
 });
 
-// Invio prova con upload
 window.submitTaskCompletion = async () => {
   if (!selectedTaskId) return;
 
@@ -224,39 +232,114 @@ window.submitTaskCompletion = async () => {
   const formData = new FormData();
   formData.append("userId", currentUser.id);
   formData.append("taskId", selectedTaskId);
-  if (file) {
-    formData.append("media", file);
-  }
+  if (file) formData.append("media", file);
 
   confirmBtn.disabled = true;
-  confirmBtn.textContent = "Caricamento in corso...";
+  confirmBtn.textContent = "Caricamento...";
 
   try {
     const res = await fetch("/api/complete-task", {
       method: "POST",
       body: formData,
     });
-    const data = await res.json();
-
     if (res.ok) {
       closeTaskModal();
     } else {
-      alert(data.error || "Errore durante l'invio della prova.");
+      alert("Errore durante l'invio della prova.");
     }
   } catch (err) {
-    alert("Errore di connessione durante l'upload.");
+    alert("Errore di rete durante il caricamento.");
   } finally {
     confirmBtn.disabled = false;
     confirmBtn.textContent = "Conferma e Invia 🚀";
   }
 };
 
+// Modal Avatar
+window.openAvatarModal = () => {
+  const previewBox = document.getElementById("avatarPreviewBox");
+  if (currentUser.avatar) {
+    previewBox.innerHTML = `<img src="${currentUser.avatar}" class="avatar-img avatar-large" alt="Profilo">`;
+  } else {
+    previewBox.innerHTML = `<span style="font-size: 3.5rem;">😎</span>`;
+  }
+  document.getElementById("avatarFileInput").value = "";
+  document.getElementById("avatarModal").style.display = "flex";
+};
+
+window.closeAvatarModal = () => {
+  document.getElementById("avatarModal").style.display = "none";
+};
+
+document
+  .getElementById("avatarFileInput")
+  .addEventListener("change", function (e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const fileUrl = URL.createObjectURL(file);
+    document.getElementById("avatarPreviewBox").innerHTML =
+      `<img src="${fileUrl}" class="avatar-img avatar-large" alt="Anteprima">`;
+  });
+
+window.submitAvatar = async () => {
+  const fileInput = document.getElementById("avatarFileInput");
+  const file = fileInput.files[0];
+  if (!file) return closeAvatarModal();
+
+  const saveBtn = document.getElementById("saveAvatarBtn");
+  saveBtn.disabled = true;
+  saveBtn.textContent = "Salvataggio...";
+
+  const formData = new FormData();
+  formData.append("userId", currentUser.id);
+  formData.append("avatar", file);
+
+  try {
+    const res = await fetch("/api/upload-avatar", {
+      method: "POST",
+      body: formData,
+    });
+    const data = await res.json();
+    if (res.ok) {
+      currentUser.avatar = data.avatarUrl;
+      localStorage.setItem("party_user", JSON.stringify(currentUser));
+      updateHeaderUI();
+      closeAvatarModal();
+    } else {
+      alert(data.error || "Errore salvataggio foto profilo.");
+    }
+  } catch (err) {
+    alert("Errore di connessione durante l'upload.");
+  } finally {
+    saveBtn.disabled = false;
+    saveBtn.textContent = "Salva Profilo 💾";
+  }
+};
+
+// Feed text message
+document.getElementById("feedSendBtn").addEventListener("click", () => {
+  const input = document.getElementById("feedInput");
+  if (!input.value.trim()) return;
+  socket.emit("new_post", {
+    userId: currentUser.id,
+    user: currentUser.name,
+    text: input.value,
+    team: currentUser.team,
+  });
+  input.value = "";
+});
+
 // Admin Actions
+window.deletePost = (postId) => {
+  if (confirm("Vuoi eliminare questo post dal feed?")) {
+    socket.emit("admin_delete_post", { postId, adminId: currentUser.id });
+  }
+};
+
 window.adminCreateTask = () => {
   const title = document.getElementById("newTaskTitle").value;
   const points = document.getElementById("newTaskPoints").value;
   if (!title.trim()) return;
-
   socket.emit("admin_add_task", { title, points, adminId: currentUser.id });
   document.getElementById("newTaskTitle").value = "";
 };
@@ -265,7 +348,6 @@ window.adminGiveTeamPoints = () => {
   const team = document.getElementById("adminTeamSelect").value;
   const amount = document.getElementById("adminTeamPoints").value;
   if (!amount) return;
-
   socket.emit("admin_give_team_points", {
     team,
     amount,
@@ -274,18 +356,6 @@ window.adminGiveTeamPoints = () => {
   document.getElementById("adminTeamPoints").value = "";
 };
 
-// Feed text message
-document.getElementById("feedSendBtn").addEventListener("click", () => {
-  const input = document.getElementById("feedInput");
-  if (!input.value.trim()) return;
-  socket.emit("new_post", {
-    user: currentUser.name,
-    text: input.value,
-    team: currentUser.team,
-  });
-  input.value = "";
-});
-
 window.switchTab = (tabName) => {
   document
     .querySelectorAll(".tab-panel")
@@ -293,7 +363,6 @@ window.switchTab = (tabName) => {
   document
     .querySelectorAll(".nav-item")
     .forEach((btn) => btn.classList.remove("active"));
-
   document.getElementById(`tab-${tabName}`).classList.add("active");
   event.currentTarget.classList.add("active");
 };

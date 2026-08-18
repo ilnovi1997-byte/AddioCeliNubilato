@@ -13,26 +13,24 @@ const io = new Server(server, { cors: { origin: "*" } });
 const DB_FILE = path.join(__dirname, "database.json");
 const ADMIN_MASTER_PIN = process.env.ADMIN_PIN || "9999";
 
-// Configurazione Cloudinary da variabili d'ambiente
+// Configurazione Cloudinary
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-// Multer in memoria RAM
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 40 * 1024 * 1024 }, // 40MB max
+  limits: { fileSize: 40 * 1024 * 1024 },
 });
 
-// Helper Upload verso Cloudinary
-function uploadToCloudinary(buffer, isVideo) {
+function uploadToCloudinary(buffer, isVideo, folder = "addio_celibato") {
   return new Promise((resolve, reject) => {
     const uploadStream = cloudinary.uploader.upload_stream(
       {
         resource_type: isVideo ? "video" : "image",
-        folder: "addio_celibato",
+        folder: folder,
       },
       (error, result) => {
         if (error) return reject(error);
@@ -72,6 +70,7 @@ let data = {
     {
       id: 1,
       user: "Sistema",
+      avatar: null,
       text: "Benvenuti alla sfida Nubilers vs Celibers! 🔥",
       time: "18:00",
       team: null,
@@ -105,6 +104,7 @@ if (fs.existsSync(DB_FILE)) {
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
+// Login
 app.post("/api/login", (req, res) => {
   const { name, pin, adminCode } = req.body;
   if (!name || !pin)
@@ -124,6 +124,7 @@ app.post("/api/login", (req, res) => {
       name: cleanName,
       pin: cleanPin,
       team: null,
+      avatar: null, // URL dell'avatar Cloudinary
       points: 0,
       role: isAdmin
         ? "admin"
@@ -145,6 +146,7 @@ app.post("/api/login", (req, res) => {
   res.json({ success: true, user });
 });
 
+// Selezione Squadra
 app.post("/api/select-team", (req, res) => {
   const { userId, team } = req.body;
   if (!["Nubilers", "Celibers"].includes(team))
@@ -160,7 +162,35 @@ app.post("/api/select-team", (req, res) => {
   res.json({ success: true, user });
 });
 
-// Upload Prova + Salvataggio Diretto su Cloudinary
+// NUOVO ENDPOINT: Upload Avatar Profilo
+app.post("/api/upload-avatar", upload.single("avatar"), async (req, res) => {
+  const { userId } = req.body;
+  const user = data.users.find((u) => u.id === userId);
+
+  if (!user) return res.status(404).json({ error: "Utente non trovato." });
+  if (!req.file)
+    return res.status(400).json({ error: "Nessun file selezionato." });
+
+  try {
+    const result = await uploadToCloudinary(
+      req.file.buffer,
+      false,
+      "addio_celibato/avatars",
+    );
+    user.avatar = result.secure_url;
+    saveDatabase();
+
+    io.emit("update_scoreboard", { teams: data.teams, users: data.users });
+    res.json({ success: true, avatarUrl: user.avatar, user });
+  } catch (err) {
+    console.error("Errore upload avatar Cloudinary:", err);
+    res
+      .status(500)
+      .json({ error: "Errore durante il caricamento dell'immagine profilo." });
+  }
+});
+
+// Completamento Sfida con Prova Media
 app.post("/api/complete-task", upload.single("media"), async (req, res) => {
   const { userId, taskId } = req.body;
   const user = data.users.find((u) => u.id === userId);
@@ -181,7 +211,7 @@ app.post("/api/complete-task", upload.single("media"), async (req, res) => {
         type: isVideo ? "video" : "image",
       };
     } catch (err) {
-      console.error("Errore durante l'upload su Cloudinary:", err.message);
+      console.error("Errore Cloudinary:", err.message);
     }
   }
 
@@ -191,6 +221,7 @@ app.post("/api/complete-task", upload.single("media"), async (req, res) => {
   const post = {
     id: Date.now(),
     user: `${user.name} (${user.team})`,
+    avatar: user.avatar || null,
     text: `ha completato "${task.title}" (+${task.points} pt per ${user.team})! 🎯`,
     time: new Date().toLocaleTimeString([], {
       hour: "2-digit",
@@ -210,6 +241,7 @@ app.post("/api/complete-task", upload.single("media"), async (req, res) => {
       id: u.id,
       name: u.name,
       team: u.team,
+      avatar: u.avatar,
       points: u.points,
       role: u.role,
     })),
@@ -219,6 +251,7 @@ app.post("/api/complete-task", upload.single("media"), async (req, res) => {
   res.json({ success: true, post });
 });
 
+// Socket.io Real-Time
 io.on("connection", (socket) => {
   socket.emit("init_data", {
     teams: data.teams,
@@ -227,6 +260,7 @@ io.on("connection", (socket) => {
       id: u.id,
       name: u.name,
       team: u.team,
+      avatar: u.avatar,
       points: u.points,
       role: u.role,
     })),
@@ -255,11 +289,22 @@ io.on("connection", (socket) => {
     io.emit("update_scoreboard", { teams: data.teams, users: data.users });
   });
 
-  socket.on("new_post", ({ user, text, team }) => {
+  socket.on("admin_delete_post", ({ postId, adminId }) => {
+    const adminUser = data.users.find((u) => u.id === adminId);
+    if (!adminUser || adminUser.role !== "admin") return;
+
+    data.feed = data.feed.filter((p) => p.id !== postId);
+    saveDatabase();
+    io.emit("feed_updated", data.feed);
+  });
+
+  socket.on("new_post", ({ userId, user, text, team }) => {
     if (!text || !text.trim()) return;
+    const author = data.users.find((u) => u.id === userId);
     const post = {
       id: Date.now(),
       user: user || "Anonimo",
+      avatar: author ? author.avatar : null,
       text: text.trim(),
       time: new Date().toLocaleTimeString([], {
         hour: "2-digit",
@@ -271,16 +316,6 @@ io.on("connection", (socket) => {
     data.feed.unshift(post);
     saveDatabase();
     io.emit("broadcast_post", post);
-  });
-  // AZIONE ADMIN: Elimina un post dal Feed
-  socket.on("admin_delete_post", ({ postId, adminId }) => {
-    const adminUser = data.users.find((u) => u.id === adminId);
-    if (!adminUser || adminUser.role !== "admin") return;
-
-    data.feed = data.feed.filter((p) => p.id !== postId);
-    saveDatabase();
-
-    io.emit("feed_updated", data.feed);
   });
 });
 

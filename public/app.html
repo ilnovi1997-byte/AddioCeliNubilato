@@ -10,8 +10,11 @@
 <body class="app-body">
     <!-- Header Utente -->
     <header class="app-header">
-        <div class="user-info">
-            <span class="user-avatar" id="avatarIcon">😎</span>
+        <div class="user-info" onclick="openAvatarModal()" title="Cambia foto profilo">
+            <div class="avatar-container" id="avatarContainer">
+                <span class="user-avatar" id="avatarIcon">😎</span>
+                <span class="avatar-edit-badge">📷</span>
+            </div>
             <div>
                 <strong id="userName">Ospite</strong>
                 <span class="user-badge" id="userTeamBadge">Nessuna Squadra</span>
@@ -114,7 +117,7 @@
         </section>
     </main>
 
-    <!-- Modal Upload Prova -->
+    <!-- Modal Completamento Sfida & Upload Prova -->
     <div id="taskModal" class="modal-overlay" style="display: none;">
         <div class="modal-card">
             <h3 id="modalTaskTitle">Completa Sfida</h3>
@@ -123,15 +126,38 @@
             <div class="upload-area">
                 <label for="mediaInput" class="upload-label">
                     <span>📷 Carica Foto o Video</span>
-                    <small>Puoi scattare una foto/video o sceglierne uno dalla galleria</small>
+                    <small>Scegli dalla galleria o scatta al momento</small>
                 </label>
-                <input type="file" id="mediaInput" accept="image/*,video/*" >
+                <input type="file" id="mediaInput" accept="image/*,video/*">
                 <div id="mediaPreviewContainer" class="media-preview"></div>
             </div>
 
             <div class="modal-actions">
                 <button class="btn-secondary" onclick="closeTaskModal()">Annulla</button>
                 <button class="btn-primary" id="confirmTaskBtn" onclick="submitTaskCompletion()">Conferma e Invia 🚀</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- NUOVO: Modal Foto Profilo Avatar -->
+    <div id="avatarModal" class="modal-overlay" style="display: none;">
+        <div class="modal-card">
+            <h3>La tua Immagine Profilo</h3>
+            <p class="modal-points">Personalizza come ti vedranno tutti gli altri!</p>
+            
+            <div class="upload-area">
+                <div id="avatarPreviewBox" class="avatar-preview-box">
+                    <span id="avatarBigEmoji" style="font-size: 3.5rem;">😎</span>
+                </div>
+                <label for="avatarFileInput" class="upload-label" style="margin-top: 12px;">
+                    <span class="btn-secondary" style="display: inline-block;">Scegli Foto 📸</span>
+                </label>
+                <input type="file" id="avatarFileInput" accept="image/*">
+            </div>
+
+            <div class="modal-actions">
+                <button class="btn-secondary" onclick="closeAvatarModal()">Chiudi</button>
+                <button class="btn-primary" id="saveAvatarBtn" onclick="submitAvatar()">Salva Profilo 💾</button>
             </div>
         </div>
     </div>
