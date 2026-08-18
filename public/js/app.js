@@ -108,6 +108,12 @@ function renderRanking() {
     .join("");
 }
 
+// Ascolta l'aggiornamento del feed dopo un'eliminazione
+socket.on("feed_updated", (updatedFeed) => {
+  currentFeed = updatedFeed;
+  renderFeed();
+});
+
 function renderFeed() {
   const container = document.getElementById("feedList");
   if (!container) return;
@@ -118,6 +124,12 @@ function renderFeed() {
         ? `<span class="tag-${p.team.toLowerCase()}">[${p.team}]</span>`
         : "";
 
+      // Pulsante visibile SOLO se l'utente attuale è Admin
+      const deleteBtn =
+        currentUser.role === "admin"
+          ? `<button class="btn-delete-post" onclick="deletePost(${p.id})">🗑️</button>`
+          : "";
+
       let mediaHtml = "";
       if (p.media && p.media.url) {
         if (p.media.type === "video") {
@@ -125,7 +137,6 @@ function renderFeed() {
                     <div class="feed-media-wrapper">
                         <video controls playsinline preload="metadata" class="feed-media">
                             <source src="${p.media.url}">
-                            Il tuo browser non supporta la riproduzione video.
                         </video>
                     </div>`;
         } else {
@@ -140,7 +151,10 @@ function renderFeed() {
             <div class="feed-card ${p.team ? "feed-" + p.team.toLowerCase() : ""}">
                 <div class="feed-card-header">
                     <span class="feed-user">${teamTag} ${p.user}</span>
-                    <span>${p.time}</span>
+                    <div class="header-right">
+                        <span>${p.time}</span>
+                        ${deleteBtn}
+                    </div>
                 </div>
                 <div class="feed-text">${p.text}</div>
                 ${mediaHtml}
@@ -149,6 +163,16 @@ function renderFeed() {
     })
     .join("");
 }
+
+// Funzione richiamata dal pulsante elimina
+window.deletePost = (postId) => {
+  if (confirm("Sei sicuro di voler eliminare questo post dal feed?")) {
+    socket.emit("admin_delete_post", {
+      postId: postId,
+      adminId: currentUser.id,
+    });
+  }
+};
 
 // Gestione Modal Completamento Sfida & Upload
 window.openTaskModal = (taskId) => {

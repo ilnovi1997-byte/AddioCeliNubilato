@@ -307,3 +307,24 @@ body {
 .admin-toggle-box { margin: 12px 0; font-size: 0.85rem; text-align: left; }
 .checkbox-container { display: flex; align-items: center; gap: 8px; cursor: pointer; color: var(--text-muted); }
 .error-msg { color: #ff4d4f; font-size: 0.85rem; margin-bottom: 10px; }
+
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.btn-delete-post {
+    background: rgba(255, 77, 79, 0.2);
+    border: 1px solid #ff4d4f;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.75rem;
+    padding: 2px 6px;
+    color: #fff;
+    transition: background 0.2s;
+}
+
+.btn-delete-post:active {
+    background: rgba(255, 77, 79, 0.5);
+}

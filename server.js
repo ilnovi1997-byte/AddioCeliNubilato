@@ -272,6 +272,16 @@ io.on("connection", (socket) => {
     saveDatabase();
     io.emit("broadcast_post", post);
   });
+  // AZIONE ADMIN: Elimina un post dal Feed
+  socket.on("admin_delete_post", ({ postId, adminId }) => {
+    const adminUser = data.users.find((u) => u.id === adminId);
+    if (!adminUser || adminUser.role !== "admin") return;
+
+    data.feed = data.feed.filter((p) => p.id !== postId);
+    saveDatabase();
+
+    io.emit("feed_updated", data.feed);
+  });
 });
 
 const PORT = process.env.PORT || 3000;
