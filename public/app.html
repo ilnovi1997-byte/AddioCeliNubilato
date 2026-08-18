@@ -10,9 +10,9 @@
 <body class="app-body">
     <!-- Header Utente -->
     <header class="app-header">
-        <div class="user-info" onclick="openAvatarModal()" title="Cambia foto profilo">
+        <div class="user-info" onclick="openAvatarModal()" title="Tocca per cambiare foto profilo">
             <div class="avatar-container" id="avatarContainer">
-                <span class="user-avatar" id="avatarIcon">😎</span>
+                <div class="avatar-fallback">😎</div>
                 <span class="avatar-edit-badge">📷</span>
             </div>
             <div>
@@ -41,7 +41,11 @@
 
     <!-- Nav Bar -->
     <nav class="nav-bar">
-        <button class="nav-item active" onclick="switchTab('tasks')">
+        <button class="nav-item active" onclick="switchTab('itinerary')">
+            <span>🗺️</span>
+            <small>Itinerario</small>
+        </button>
+        <button class="nav-item" onclick="switchTab('tasks')">
             <span>🎯</span>
             <small>Sfide</small>
         </button>
@@ -64,16 +68,26 @@
     </nav>
 
     <main class="app-container">
-        <!-- Tab Sfide -->
-        <section id="tab-tasks" class="tab-panel active">
+        <!-- Tab 1: Itinerario -->
+        <section id="tab-itinerary" class="tab-panel active">
+            <div class="section-title">
+                <h2>Programma di Viaggio ✈️</h2>
+                <p>Tutti gli orari, le tappe e le attività previste</p>
+            </div>
+            <div id="dayFilterContainer" class="day-filter-container"></div>
+            <div id="itineraryList" class="itinerary-timeline"></div>
+        </section>
+
+        <!-- Tab 2: Sfide -->
+        <section id="tab-tasks" class="tab-panel">
             <div class="section-title">
                 <h2>Sfide Ripetibili</h2>
-                <p>Completa le prove, allega la prova fotografica/video e fai vincere il tuo team!</p>
+                <p>Completa le prove, allega la foto/video e fai vincere il tuo team!</p>
             </div>
             <div id="taskList" class="task-list"></div>
         </section>
 
-        <!-- Tab Classifica -->
+        <!-- Tab 3: Classifica -->
         <section id="tab-ranking" class="tab-panel">
             <div class="section-title">
                 <h2>Top Contributors</h2>
@@ -82,7 +96,7 @@
             <div id="rankingList" class="ranking-list"></div>
         </section>
 
-        <!-- Tab Feed -->
+        <!-- Tab 4: Feed -->
         <section id="tab-feed" class="tab-panel">
             <div class="section-title">
                 <h2>Live Event Feed</h2>
@@ -94,17 +108,29 @@
             <div id="feedList" class="feed-list"></div>
         </section>
 
-        <!-- Tab Admin -->
+        <!-- Tab 5: Admin -->
         <section id="tab-admin" class="tab-panel">
             <div class="section-title">
                 <h2>Pannello Admin ⚙️</h2>
             </div>
+
+            <div class="admin-card">
+                <h3>🗺️ Aggiungi Tappa Itinerario</h3>
+                <input type="text" id="itinDay" placeholder="Giorno (es. Giorno 1, Venerdì...)">
+                <input type="text" id="itinTime" placeholder="Orario (es. 20:30)">
+                <input type="text" id="itinTitle" placeholder="Titolo Tappa">
+                <input type="text" id="itinLocation" placeholder="Luogo (es. Bar del Porto)">
+                <input type="text" id="itinDesc" placeholder="Dettagli / Consigli su cosa portare">
+                <button class="btn-primary" onclick="adminCreateItinerary()">Aggiungi all'Itinerario</button>
+            </div>
+
             <div class="admin-card">
                 <h3>➕ Crea Nuova Sfida</h3>
                 <input type="text" id="newTaskTitle" placeholder="Testo della sfida">
                 <input type="number" id="newTaskPoints" placeholder="Punti" value="50">
                 <button class="btn-primary" onclick="adminCreateTask()">Aggiungi Sfida</button>
             </div>
+
             <div class="admin-card">
                 <h3>⭐ Bonus / Malus Squadra</h3>
                 <select id="adminTeamSelect">
@@ -139,15 +165,15 @@
         </div>
     </div>
 
-    <!-- NUOVO: Modal Foto Profilo Avatar -->
+    <!-- Modal Modifica Immagine Profilo -->
     <div id="avatarModal" class="modal-overlay" style="display: none;">
         <div class="modal-card">
             <h3>La tua Immagine Profilo</h3>
-            <p class="modal-points">Personalizza come ti vedranno tutti gli altri!</p>
+            <p class="modal-points">Personalizza la tua icona visibile a tutti!</p>
             
             <div class="upload-area">
                 <div id="avatarPreviewBox" class="avatar-preview-box">
-                    <span id="avatarBigEmoji" style="font-size: 3.5rem;">😎</span>
+                    <span style="font-size: 3.5rem;">😎</span>
                 </div>
                 <label for="avatarFileInput" class="upload-label" style="margin-top: 12px;">
                     <span class="btn-secondary" style="display: inline-block;">Scegli Foto 📸</span>

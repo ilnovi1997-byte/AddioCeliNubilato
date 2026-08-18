@@ -20,9 +20,10 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
+// Multer in memoria RAM
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 40 * 1024 * 1024 },
+  limits: { fileSize: 40 * 1024 * 1024 }, // 40MB max
 });
 
 function uploadToCloudinary(buffer, isVideo, folder = "addio_celibato") {
@@ -47,6 +48,35 @@ let data = {
     Celibers: { name: "Celibers", color: "#00d2ff", points: 0 },
   },
   users: [],
+  itinerary: [
+    {
+      id: 1,
+      day: "Giorno 1",
+      time: "18:30",
+      title: "Ritrovo & Brindisi di Benvenuto",
+      description:
+        "Incontro al punto base, consegna magliette e primo shot di rito.",
+      location: "Base / Hotel",
+    },
+    {
+      id: 2,
+      day: "Giorno 1",
+      time: "21:00",
+      title: "Cena & Inizio Clash",
+      description:
+        "Cena tutti insieme e apertura ufficiale delle sfide Nubilers vs Celibers.",
+      location: "Ristorante Centro",
+    },
+    {
+      id: 3,
+      day: "Giorno 2",
+      time: "11:00",
+      title: "Attività a Sorpresa",
+      description:
+        "Outfit comodo e occhiali da sole, vietato fare domande allo sposo!",
+      location: "Location Segreta",
+    },
+  ],
   tasks: [
     { id: 1, title: "Bevi uno shot senza usare le mani", points: 50 },
     { id: 2, title: "Fai un brindisi imbarazzante allo sposo", points: 100 },
@@ -96,6 +126,7 @@ if (fs.existsSync(DB_FILE)) {
         Celibers: { name: "Celibers", color: "#00d2ff", points: 0 },
       };
     }
+    if (!data.itinerary) data.itinerary = [];
   } catch (e) {
     console.log("Inizializzazione database predefinito.");
   }
@@ -124,7 +155,7 @@ app.post("/api/login", (req, res) => {
       name: cleanName,
       pin: cleanPin,
       team: null,
-      avatar: null, // URL dell'avatar Cloudinary
+      avatar: null,
       points: 0,
       role: isAdmin
         ? "admin"
@@ -162,7 +193,7 @@ app.post("/api/select-team", (req, res) => {
   res.json({ success: true, user });
 });
 
-// NUOVO ENDPOINT: Upload Avatar Profilo
+// Upload Immagine Profilo
 app.post("/api/upload-avatar", upload.single("avatar"), async (req, res) => {
   const { userId } = req.body;
   const user = data.users.find((u) => u.id === userId);
@@ -190,7 +221,7 @@ app.post("/api/upload-avatar", upload.single("avatar"), async (req, res) => {
   }
 });
 
-// Completamento Sfida con Prova Media
+// Completamento Sfida con Upload Multimediale
 app.post("/api/complete-task", upload.single("media"), async (req, res) => {
   const { userId, taskId } = req.body;
   const user = data.users.find((u) => u.id === userId);
@@ -205,7 +236,11 @@ app.post("/api/complete-task", upload.single("media"), async (req, res) => {
   if (req.file) {
     const isVideo = req.file.mimetype.startsWith("video");
     try {
-      const result = await uploadToCloudinary(req.file.buffer, isVideo);
+      const result = await uploadToCloudinary(
+        req.file.buffer,
+        isVideo,
+        "addio_celibato/sfide",
+      );
       mediaObj = {
         url: result.secure_url,
         type: isVideo ? "video" : "image",
@@ -255,6 +290,7 @@ app.post("/api/complete-task", upload.single("media"), async (req, res) => {
 io.on("connection", (socket) => {
   socket.emit("init_data", {
     teams: data.teams,
+    itinerary: data.itinerary || [],
     tasks: data.tasks,
     users: data.users.map((u) => ({
       id: u.id,
@@ -267,6 +303,7 @@ io.on("connection", (socket) => {
     feed: data.feed,
   });
 
+  // Sfide Admin
   socket.on("admin_add_task", ({ title, points, adminId }) => {
     const admin = data.users.find((u) => u.id === adminId);
     if (!admin || admin.role !== "admin") return;
@@ -280,6 +317,7 @@ io.on("connection", (socket) => {
     io.emit("update_tasks", data.tasks);
   });
 
+  // Punti Squadra Admin
   socket.on("admin_give_team_points", ({ team, amount, adminId }) => {
     const admin = data.users.find((u) => u.id === adminId);
     if (!admin || admin.role !== "admin" || !data.teams[team]) return;
@@ -289,6 +327,7 @@ io.on("connection", (socket) => {
     io.emit("update_scoreboard", { teams: data.teams, users: data.users });
   });
 
+  // Moderazione Feed Admin
   socket.on("admin_delete_post", ({ postId, adminId }) => {
     const adminUser = data.users.find((u) => u.id === adminId);
     if (!adminUser || adminUser.role !== "admin") return;
@@ -298,6 +337,42 @@ io.on("connection", (socket) => {
     io.emit("feed_updated", data.feed);
   });
 
+  // Gestione Itinerario Admin
+  socket.on(
+    "admin_add_itinerary",
+    ({ day, time, title, description, location, adminId }) => {
+      const admin = data.users.find((u) => u.id === adminId);
+      if (!admin || admin.role !== "admin") return;
+
+      if (!data.itinerary) data.itinerary = [];
+
+      const newItem = {
+        id: Date.now(),
+        day: day.trim() || "Giorno 1",
+        time: time.trim() || "12:00",
+        title: title.trim(),
+        description: (description || "").trim(),
+        location: (location || "").trim(),
+      };
+
+      data.itinerary.push(newItem);
+      saveDatabase();
+      io.emit("update_itinerary", data.itinerary);
+    },
+  );
+
+  socket.on("admin_delete_itinerary", ({ itemId, adminId }) => {
+    const admin = data.users.find((u) => u.id === adminId);
+    if (!admin || admin.role !== "admin") return;
+
+    data.itinerary = (data.itinerary || []).filter(
+      (item) => item.id !== itemId,
+    );
+    saveDatabase();
+    io.emit("update_itinerary", data.itinerary);
+  });
+
+  // Messaggio Feed
   socket.on("new_post", ({ userId, user, text, team }) => {
     if (!text || !text.trim()) return;
     const author = data.users.find((u) => u.id === userId);

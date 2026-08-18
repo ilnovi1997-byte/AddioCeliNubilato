@@ -41,7 +41,6 @@ document.getElementById("loginForm").addEventListener("submit", async (e) => {
     loggedUser = data.user;
     localStorage.setItem("party_user", JSON.stringify(loggedUser));
 
-    // Se l'utente non ha ancora scelto la squadra, mostra il selettore
     if (!loggedUser.team) {
       document.getElementById("loginCard").style.display = "none";
       document.getElementById("teamCard").style.display = "block";

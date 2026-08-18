@@ -10,9 +10,10 @@ let currentTasks = [];
 let currentUsers = [];
 let currentFeed = [];
 let currentTeams = { Nubilers: { points: 0 }, Celibers: { points: 0 } };
+let currentItinerary = [];
+let selectedDayFilter = "Tutti";
 let selectedTaskId = null;
 
-// Helper per generare l'HTML dell'avatar
 function getAvatarHtml(avatarUrl, extraClass = "") {
   if (avatarUrl) {
     return `<img src="${avatarUrl}" class="avatar-img ${extraClass}" alt="Avatar">`;
@@ -41,22 +42,29 @@ function updateHeaderUI() {
 
 updateHeaderUI();
 
-// Socket Events
+// Socket Listeners
 socket.on("init_data", (data) => {
   currentTasks = data.tasks;
   currentUsers = data.users;
   currentFeed = data.feed;
   currentTeams = data.teams;
+  currentItinerary = data.itinerary || [];
 
   renderTeams();
   renderTasks();
   renderRanking();
   renderFeed();
+  renderItinerary();
 });
 
 socket.on("update_tasks", (tasks) => {
   currentTasks = tasks;
   renderTasks();
+});
+
+socket.on("update_itinerary", (itinerary) => {
+  currentItinerary = itinerary;
+  renderItinerary();
 });
 
 socket.on("update_scoreboard", ({ teams, users }) => {
@@ -84,11 +92,66 @@ socket.on("feed_updated", (updatedFeed) => {
   renderFeed();
 });
 
+// Render Functions
 function renderTeams() {
   document.getElementById("nubilersPoints").textContent =
     `${currentTeams.Nubilers.points} pt`;
   document.getElementById("celibersPoints").textContent =
     `${currentTeams.Celibers.points} pt`;
+}
+
+function renderItinerary() {
+  const container = document.getElementById("itineraryList");
+  const filterContainer = document.getElementById("dayFilterContainer");
+  if (!container || !filterContainer) return;
+
+  const days = ["Tutti", ...new Set(currentItinerary.map((item) => item.day))];
+
+  filterContainer.innerHTML = days
+    .map(
+      (d) => `
+        <button class="day-chip ${selectedDayFilter === d ? "active" : ""}" onclick="setDayFilter('${d}')">
+            ${d}
+        </button>
+    `,
+    )
+    .join("");
+
+  const filtered =
+    selectedDayFilter === "Tutti"
+      ? currentItinerary
+      : currentItinerary.filter((i) => i.day === selectedDayFilter);
+
+  if (filtered.length === 0) {
+    container.innerHTML = `<div class="empty-state">Nessuna attività programmata per questo giorno 🏖️</div>`;
+    return;
+  }
+
+  container.innerHTML = filtered
+    .map((item) => {
+      const deleteBtn =
+        currentUser.role === "admin"
+          ? `<button class="btn-delete-post" onclick="deleteItineraryItem(${item.id})">🗑️</button>`
+          : "";
+
+      return `
+            <div class="itinerary-card">
+                <div class="itinerary-time-box">
+                    <span class="itinerary-day-badge">${item.day}</span>
+                    <span class="itinerary-time">${item.time}</span>
+                </div>
+                <div class="itinerary-info">
+                    <div class="itinerary-header">
+                        <h4>${item.title}</h4>
+                        ${deleteBtn}
+                    </div>
+                    ${item.location ? `<div class="itinerary-location">📍 ${item.location}</div>` : ""}
+                    ${item.description ? `<p class="itinerary-desc">${item.description}</p>` : ""}
+                </div>
+            </div>
+        `;
+    })
+    .join("");
 }
 
 function renderTasks() {
@@ -187,7 +250,7 @@ function renderFeed() {
     .join("");
 }
 
-// Modal Task
+// Modal Task Actions
 window.openTaskModal = (taskId) => {
   const task = currentTasks.find((t) => t.id === taskId);
   if (!task) return;
@@ -248,14 +311,14 @@ window.submitTaskCompletion = async () => {
       alert("Errore durante l'invio della prova.");
     }
   } catch (err) {
-    alert("Errore di rete durante il caricamento.");
+    alert("Errore di connessione durante l'upload.");
   } finally {
     confirmBtn.disabled = false;
     confirmBtn.textContent = "Conferma e Invia 🚀";
   }
 };
 
-// Modal Avatar
+// Modal Avatar Actions
 window.openAvatarModal = () => {
   const previewBox = document.getElementById("avatarPreviewBox");
   if (currentUser.avatar) {
@@ -316,26 +379,45 @@ window.submitAvatar = async () => {
   }
 };
 
-// Feed text message
-document.getElementById("feedSendBtn").addEventListener("click", () => {
-  const input = document.getElementById("feedInput");
-  if (!input.value.trim()) return;
-  socket.emit("new_post", {
-    userId: currentUser.id,
-    user: currentUser.name,
-    text: input.value,
-    team: currentUser.team,
-  });
-  input.value = "";
-});
+// Itinerario Filters & Admin Actions
+window.setDayFilter = (day) => {
+  selectedDayFilter = day;
+  renderItinerary();
+};
 
-// Admin Actions
-window.deletePost = (postId) => {
-  if (confirm("Vuoi eliminare questo post dal feed?")) {
-    socket.emit("admin_delete_post", { postId, adminId: currentUser.id });
+window.adminCreateItinerary = () => {
+  const day = document.getElementById("itinDay").value;
+  const time = document.getElementById("itinTime").value;
+  const title = document.getElementById("itinTitle").value;
+  const location = document.getElementById("itinLocation").value;
+  const description = document.getElementById("itinDesc").value;
+
+  if (!title.trim()) return alert("Inserisci almeno il titolo dell'attività");
+
+  socket.emit("admin_add_itinerary", {
+    day,
+    time,
+    title,
+    location,
+    description,
+    adminId: currentUser.id,
+  });
+
+  document.getElementById("itinDay").value = "";
+  document.getElementById("itinTime").value = "";
+  document.getElementById("itinTitle").value = "";
+  document.getElementById("itinLocation").value = "";
+  document.getElementById("itinDesc").value = "";
+  alert("Tappa aggiunta all'itinerario!");
+};
+
+window.deleteItineraryItem = (itemId) => {
+  if (confirm("Vuoi eliminare questa tappa dall'itinerario?")) {
+    socket.emit("admin_delete_itinerary", { itemId, adminId: currentUser.id });
   }
 };
 
+// Admin Tasks & Points
 window.adminCreateTask = () => {
   const title = document.getElementById("newTaskTitle").value;
   const points = document.getElementById("newTaskPoints").value;
@@ -355,6 +437,25 @@ window.adminGiveTeamPoints = () => {
   });
   document.getElementById("adminTeamPoints").value = "";
 };
+
+window.deletePost = (postId) => {
+  if (confirm("Vuoi eliminare questo post dal feed?")) {
+    socket.emit("admin_delete_post", { postId, adminId: currentUser.id });
+  }
+};
+
+// Feed Send
+document.getElementById("feedSendBtn").addEventListener("click", () => {
+  const input = document.getElementById("feedInput");
+  if (!input.value.trim()) return;
+  socket.emit("new_post", {
+    userId: currentUser.id,
+    user: currentUser.name,
+    text: input.value,
+    team: currentUser.team,
+  });
+  input.value = "";
+});
 
 window.switchTab = (tabName) => {
   document
