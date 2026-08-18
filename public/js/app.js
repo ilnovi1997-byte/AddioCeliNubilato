@@ -15,7 +15,13 @@ let currentCondemned = [];
 let selectedDayFilter = "Tutti";
 let selectedTaskId = null;
 let editingTaskId = null;
-let editingCondemnedId = null;
+
+// Parsing semplice per testo sicuro con a capo e formattazione
+function formatRichText(raw) {
+  if (!raw) return "";
+  let text = raw.replace(/\n/g, "<br>");
+  return text;
+}
 
 function getAvatarHtml(avatarUrl, extraClass = "") {
   if (avatarUrl) {
@@ -124,29 +130,39 @@ function renderCondemned() {
   container.innerHTML = currentCondemned
     .map((c) => {
       const teamBorder = c.team ? `team-border-${c.team.toLowerCase()}` : "";
-      const deleteBtn =
+      const fitClass = c.fitMode ? `fit-${c.fitMode}` : "fit-cover-center";
+      const heightStyle = c.imgHeight
+        ? `height: ${c.imgHeight};`
+        : "height: 260px;";
+
+      const adminControls =
         currentUser.role === "admin"
-          ? `<button class="btn-action-small btn-delete" onclick="adminDeleteCondemned(${c.id})" style="position: absolute; top: 12px; right: 12px;">🗑️</button>`
+          ? `
+            <div class="condemned-admin-actions">
+                <button class="btn-action-small btn-edit" onclick="editCondemnedProfile(${c.id})">✏️ Modifica</button>
+                <button class="btn-action-small btn-delete" onclick="adminDeleteCondemned(${c.id})">🗑️</button>
+            </div>
+        `
           : "";
 
       return `
             <div class="condemned-card ${teamBorder}">
-                ${deleteBtn}
-                <div class="condemned-photo-wrapper">
-                    <img src="${c.photo}" alt="${c.name}" class="condemned-photo">
+                ${adminControls}
+                <div class="condemned-photo-wrapper" style="${heightStyle}">
+                    <img src="${c.photo}" alt="${c.name}" class="condemned-photo ${fitClass}">
                     <span class="condemned-role-badge badge-${c.team ? c.team.toLowerCase() : "neutral"}">${c.role} (${c.team})</span>
                 </div>
                 <div class="condemned-body">
                     <h3 class="condemned-name">${c.name}</h3>
                     ${c.nickname ? `<div class="condemned-nickname">"${c.nickname}"</div>` : ""}
                     
-                    <p class="condemned-desc">${c.description || ""}</p>
+                    <div class="condemned-desc">${formatRichText(c.description)}</div>
                     
                     ${
                       c.weakness
                         ? `
                         <div class="condemned-info-pill">
-                            <strong>⚠️ Punto Debole:</strong> ${c.weakness}
+                            <strong>⚠️ Punto Debole:</strong> ${formatRichText(c.weakness)}
                         </div>`
                         : ""
                     }
@@ -154,7 +170,7 @@ function renderCondemned() {
                     ${
                       c.quote
                         ? `
-                        <div class="condemned-quote">${c.quote}</div>`
+                        <div class="condemned-quote">${formatRichText(c.quote)}</div>`
                         : ""
                     }
                 </div>
@@ -271,7 +287,7 @@ function renderItinerary() {
                         ${deleteBtn}
                     </div>
                     ${item.location ? `<div class="itinerary-location">📍 ${item.location}</div>` : ""}
-                    ${item.description ? `<p class="itinerary-desc">${item.description}</p>` : ""}
+                    ${item.description ? `<div class="itinerary-desc">${formatRichText(item.description)}</div>` : ""}
                 </div>
             </div>
         `;
@@ -348,7 +364,7 @@ function renderFeed() {
                         ${deleteBtn}
                     </div>
                 </div>
-                <div class="feed-text">${p.text}</div>
+                <div class="feed-text">${formatRichText(p.text)}</div>
                 ${mediaHtml}
             </div>
         `;
@@ -463,22 +479,85 @@ window.adminDeleteTask = (taskId) => {
   }
 };
 
-// Admin Condannati
+// GESTIONE CONDANNATI (CREA E MODIFICA)
 document
   .getElementById("condPhotoInput")
   .addEventListener("change", function (e) {
     const file = e.target.files[0];
     const preview = document.getElementById("condPhotoPreview");
     if (file) {
-      preview.innerHTML = `<img src="${URL.createObjectURL(file)}" style="width:80px; height:80px; border-radius:50%; object-fit:cover;">`;
+      preview.innerHTML = `<img src="${URL.createObjectURL(file)}" style="width:80px; height:80px; border-radius:10px; object-fit:cover;">`;
     }
   });
 
+window.editCondemnedProfile = (condemnedId) => {
+  const c = currentCondemned.find((item) => item.id === condemnedId);
+  if (!c) return;
+
+  switchTab("admin");
+
+  document.getElementById("adminCondemnedFormTitle").textContent =
+    `✏️ Modifica: ${c.name}`;
+  document.getElementById("condId").value = c.id;
+  document.getElementById("condExistingPhoto").value = c.photo || "";
+  document.getElementById("condName").value = c.name || "";
+  document.getElementById("condNickname").value = c.nickname || "";
+  document.getElementById("condRole").value = c.role || "Sposo";
+  document.getElementById("condTeam").value = c.team || "Celibers";
+  document.getElementById("condFitMode").value = c.fitMode || "cover-center";
+  document.getElementById("condImgHeight").value = c.imgHeight || "260px";
+
+  // Ripristina testo formattato
+  document.getElementById("condDesc").value = (c.description || "").replace(
+    /<br\s*[\/]?>/gi,
+    "\n",
+  );
+  document.getElementById("condWeakness").value = c.weakness || "";
+  document.getElementById("condQuote").value = c.quote || "";
+
+  if (c.photo) {
+    document.getElementById("condPhotoPreview").innerHTML =
+      `<img src="${c.photo}" style="width:80px; height:80px; border-radius:10px; object-fit:cover;"><small style="display:block; color:var(--text-muted);">Foto attuale</small>`;
+  }
+
+  document.getElementById("cancelCondemnedEditBtn").style.display = "block";
+  document.getElementById("saveCondemnedBtn").textContent =
+    "Salva Modifiche Profilo 💾";
+  document
+    .getElementById("adminCondemnedCard")
+    .scrollIntoView({ behavior: "smooth" });
+};
+
+window.resetCondemnedForm = () => {
+  document.getElementById("adminCondemnedFormTitle").textContent =
+    "👰🤵 Aggiungi o Modifica Condannato";
+  document.getElementById("condId").value = "";
+  document.getElementById("condExistingPhoto").value = "";
+  document.getElementById("condName").value = "";
+  document.getElementById("condNickname").value = "";
+  document.getElementById("condRole").value = "Sposo";
+  document.getElementById("condTeam").value = "Celibers";
+  document.getElementById("condFitMode").value = "cover-center";
+  document.getElementById("condImgHeight").value = "260px";
+  document.getElementById("condDesc").value = "";
+  document.getElementById("condWeakness").value = "";
+  document.getElementById("condQuote").value = "";
+  document.getElementById("condPhotoInput").value = "";
+  document.getElementById("condPhotoPreview").innerHTML = "";
+  document.getElementById("cancelCondemnedEditBtn").style.display = "none";
+  document.getElementById("saveCondemnedBtn").textContent =
+    "Salva Profilo Condannato 💾";
+};
+
 window.adminSubmitCondemned = async () => {
+  const id = document.getElementById("condId").value;
+  const existingPhoto = document.getElementById("condExistingPhoto").value;
   const name = document.getElementById("condName").value;
   const nickname = document.getElementById("condNickname").value;
   const role = document.getElementById("condRole").value;
   const team = document.getElementById("condTeam").value;
+  const fitMode = document.getElementById("condFitMode").value;
+  const imgHeight = document.getElementById("condImgHeight").value;
   const description = document.getElementById("condDesc").value;
   const weakness = document.getElementById("condWeakness").value;
   const quote = document.getElementById("condQuote").value;
@@ -492,29 +571,28 @@ window.adminSubmitCondemned = async () => {
 
   const formData = new FormData();
   formData.append("adminId", currentUser.id);
+  if (id) formData.append("id", id);
+  if (existingPhoto) formData.append("existingPhoto", existingPhoto);
   formData.append("name", name);
   formData.append("nickname", nickname);
   formData.append("role", role);
   formData.append("team", team);
+  formData.append("fitMode", fitMode);
+  formData.append("imgHeight", imgHeight);
   formData.append("description", description);
   formData.append("weakness", weakness);
   formData.append("quote", quote);
   if (photoFile) formData.append("photo", photoFile);
 
   try {
-    const res = await fetch("/api/admin/upload-condemned", {
+    const res = await fetch("/api/admin/save-condemned", {
       method: "POST",
       body: formData,
     });
     if (res.ok) {
-      alert("Profilo condannato salvato con successo!");
-      document.getElementById("condName").value = "";
-      document.getElementById("condNickname").value = "";
-      document.getElementById("condDesc").value = "";
-      document.getElementById("condWeakness").value = "";
-      document.getElementById("condQuote").value = "";
-      document.getElementById("condPhotoInput").value = "";
-      document.getElementById("condPhotoPreview").innerHTML = "";
+      alert("Profilo salvato con successo!");
+      resetCondemnedForm();
+      switchTab("condemned");
     } else {
       alert("Errore salvataggio condannato.");
     }
@@ -682,7 +760,11 @@ window.switchTab = (tabName) => {
     .querySelectorAll(".nav-item")
     .forEach((btn) => btn.classList.remove("active"));
   document.getElementById(`tab-${tabName}`).classList.add("active");
-  event.currentTarget.classList.add("active");
+
+  const activeBtn = Array.from(document.querySelectorAll(".nav-item")).find(
+    (b) => b.getAttribute("onclick")?.includes(tabName),
+  );
+  if (activeBtn) activeBtn.classList.add("active");
 };
 
 window.logout = () => {

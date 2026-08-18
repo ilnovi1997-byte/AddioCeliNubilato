@@ -76,7 +76,7 @@
         <section id="tab-condemned" class="tab-panel active">
             <div class="section-title">
                 <h2>I Condannati a Nozze 👰🤵</h2>
-                <p>I veri protagonisti (e bersagli) di questo weekend</p>
+                <p>Schede profilo, foto e punti deboli degli sposi</p>
             </div>
             <div id="condemnedList" class="condemned-grid"></div>
         </section>
@@ -127,29 +127,66 @@
                 <h2>Pannello Admin ⚙️</h2>
             </div>
 
-            <!-- Aggiungi / Modifica Condannato -->
-            <div class="admin-card">
-                <h3>👰🤵 Profilo Condannato (Sposo / Sposa)</h3>
-                <input type="text" id="condName" placeholder="Nome (es. Alessandro)">
-                <input type="text" id="condNickname" placeholder="Soprannome (es. Il Sopravvissuto)">
-                <select id="condRole">
-                    <option value="Sposo">Sposo 🤵</option>
-                    <option value="Sposa">Sposa 👰</option>
-                    <option value="Testimone">Testimone 🥂</option>
-                </select>
-                <select id="condTeam">
-                    <option value="Celibers">Team Celibers (Sposo)</option>
-                    <option value="Nubilers">Team Nubilers (Sposa)</option>
-                </select>
-                <textarea id="condDesc" placeholder="Descrizione simpatica / Scheda del condannato" rows="2" style="width:100%; padding:10px; border-radius:8px; background:#0b0e14; border:1px solid var(--card-border); color:#fff; margin-bottom:10px;"></textarea>
-                <input type="text" id="condWeakness" placeholder="Punto debole (es. I gin tonic)">
-                <input type="text" id="condQuote" placeholder="Frase celebre (es. 'È l'ultimo!')">
+            <!-- Form Condannato (Crea / Modifica) -->
+            <div class="admin-card" id="adminCondemnedCard">
+                <h3 id="adminCondemnedFormTitle">👰🤵 Aggiungi o Modifica Condannato</h3>
+                <input type="hidden" id="condId">
+                <input type="hidden" id="condExistingPhoto">
+
+                <div class="form-row-2">
+                    <input type="text" id="condName" placeholder="Nome (es. Alessandro)" required>
+                    <input type="text" id="condNickname" placeholder="Soprannome (es. Il Sopravvissuto)">
+                </div>
+
+                <div class="form-row-2">
+                    <select id="condRole">
+                        <option value="Sposo">Sposo 🤵</option>
+                        <option value="Sposa">Sposa 👰</option>
+                        <option value="Testimone">Testimone 🥂</option>
+                    </select>
+                    <select id="condTeam">
+                        <option value="Celibers">Team Celibers (Sposo)</option>
+                        <option value="Nubilers">Team Nubilers (Sposa)</option>
+                    </select>
+                </div>
+
+                <!-- Controlli Dimensione & Inquadratura Immagine -->
+                <div class="form-row-2">
+                    <div>
+                        <label class="small-label">Ritaglio / Inquadratura</label>
+                        <select id="condFitMode">
+                            <option value="cover-top">Riempi - Focus Alto (Volto)</option>
+                            <option value="cover-center">Riempi - Centro (Cover)</option>
+                            <option value="contain">Intera (Contain - Senza Tagli)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="small-label">Altezza Scheda Foto</label>
+                        <select id="condImgHeight">
+                            <option value="200px">Compatta (200px)</option>
+                            <option value="260px" selected>Media (260px)</option>
+                            <option value="340px">Grande (340px)</option>
+                            <option value="420px">Extra Large (420px)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <label class="small-label" style="margin-top: 6px;">Descrizione / Bio (Supporta <code>&lt;b&gt;grassetto&lt;/b&gt;</code>, <code>&lt;br&gt;</code>, elenchi)</label>
+                <textarea id="condDesc" placeholder="Descrizione simpatica... (es. Ultimi giorni di libertà.<br>• Beve birra tiepida.<br>• Tende a sparire.)" rows="3"></textarea>
+
+                <input type="text" id="condWeakness" placeholder="⚠️ Punto debole (es. I gin tonic dopo le 01:00)">
+                <input type="text" id="condQuote" placeholder="💬 Frase celebre (es. 'È l'ultimo!')">
+
                 <label class="btn-secondary" style="display:block; text-align:center; margin-bottom:10px; cursor:pointer;">
-                    <span>📷 Carica Foto Sposo/a</span>
+                    <span>📷 Carica/Sostituisci Foto</span>
                     <input type="file" id="condPhotoInput" accept="image/*" style="display:none;">
                 </label>
                 <div id="condPhotoPreview" style="margin-bottom:10px; text-align:center;"></div>
-                <button class="btn-primary" id="saveCondemnedBtn" onclick="adminSubmitCondemned()">Salva Profilo Condannato 💾</button>
+
+                <div style="display: flex; gap: 8px;">
+                    <button class="btn-secondary" id="cancelCondemnedEditBtn" style="display:none;" onclick="resetCondemnedForm()">Annulla</button>
+                    <button class="btn-primary" id="saveCondemnedBtn" onclick="adminSubmitCondemned()">Salva Profilo Condannato 💾</button>
+                </div>
             </div>
 
             <!-- Crea Nuova Sfida -->
@@ -173,7 +210,7 @@
                 <input type="text" id="itinTime" placeholder="Orario (es. 20:30)">
                 <input type="text" id="itinTitle" placeholder="Titolo Tappa">
                 <input type="text" id="itinLocation" placeholder="Luogo (es. Bar del Porto)">
-                <input type="text" id="itinDesc" placeholder="Dettagli / Consigli">
+                <textarea id="itinDesc" placeholder="Dettagli / Consigli" rows="2"></textarea>
                 <button class="btn-primary" onclick="adminCreateItinerary()">Aggiungi all'Itinerario</button>
             </div>
 
@@ -217,11 +254,11 @@
             <p class="modal-points">Aggiorna testo o punteggio</p>
             <div class="form-group" style="margin-top: 10px;">
                 <label for="editTaskTitleInput">Titolo Sfida</label>
-                <input type="text" id="editTaskTitleInput" style="width: 100%; padding: 10px; border-radius: 8px; background: #0b0e14; border: 1px solid var(--card-border); color: #fff;">
+                <input type="text" id="editTaskTitleInput">
             </div>
             <div class="form-group" style="margin-top: 10px; margin-bottom: 16px;">
                 <label for="editTaskPointsInput">Punti Assegnati</label>
-                <input type="number" id="editTaskPointsInput" style="width: 100%; padding: 10px; border-radius: 8px; background: #0b0e14; border: 1px solid var(--card-border); color: #fff;">
+                <input type="number" id="editTaskPointsInput">
             </div>
             <div class="modal-actions">
                 <button class="btn-secondary" onclick="closeEditTaskModal()">Annulla</button>

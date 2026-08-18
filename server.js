@@ -54,9 +54,11 @@ let data = {
       role: "Sposo",
       team: "Celibers",
       photo:
-        "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400&auto=format&fit=crop&q=80",
+        "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=600&auto=format&fit=crop&q=80",
+      fitMode: "cover-top",
+      imgHeight: "260px",
       description:
-        "Ultimi giorni di libertà concessa. Segni particolari: beve birra tiepida se sotto pressione.",
+        "Ultimi giorni di libertà concessa.<br>• Beve birra tiepida se sotto pressione.<br>• Tende a sparire dopo le 02:00.",
       weakness: "I brindisi con shot a tradimento",
       quote: "“Faccio solo un salto e poi andiamo a dormire.”",
     },
@@ -67,9 +69,11 @@ let data = {
       role: "Sposa",
       team: "Nubilers",
       photo:
-        "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80",
+        "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=600&auto=format&fit=crop&q=80",
+      fitMode: "cover-center",
+      imgHeight: "260px",
       description:
-        "Comandante in capo dell’operazione matrimonio. Ha già previsto ogni vostra mossa.",
+        "Comandante in capo dell’operazione matrimonio.<br>• Ha già previsto ogni mossa degli invitati.<br>• Riconosce le bugie a 10 metri.",
       weakness: "Canzoni pop anni 2000 a squarciagola",
       quote: "“Basta che non facciate casini irreparabili!”",
     },
@@ -84,43 +88,10 @@ let data = {
         "Incontro al punto base, consegna magliette e primo shot di rito.",
       location: "Base / Hotel",
     },
-    {
-      id: 2,
-      day: "Giorno 1",
-      time: "21:00",
-      title: "Cena & Inizio Clash",
-      description:
-        "Cena tutti insieme e apertura ufficiale delle sfide Nubilers vs Celibers.",
-      location: "Ristorante Centro",
-    },
-    {
-      id: 3,
-      day: "Giorno 2",
-      time: "11:00",
-      title: "Attività a Sorpresa",
-      description:
-        "Outfit comodo e occhiali da sole, vietato fare domande allo sposo!",
-      location: "Location Segreta",
-    },
   ],
   tasks: [
     { id: 1, title: "Bevi uno shot senza usare le mani", points: 50 },
     { id: 2, title: "Fai un brindisi imbarazzante allo sposo", points: 100 },
-    {
-      id: 3,
-      title: "Scatta un selfie con uno sconosciuto con occhiali da sole",
-      points: 70,
-    },
-    {
-      id: 4,
-      title: "Fai cantare una canzone a squarciagola allo sposo",
-      points: 80,
-    },
-    {
-      id: 5,
-      title: "Offri un drink a uno sconosciuto spiegando il matrimonio",
-      points: 120,
-    },
   ],
   feed: [
     {
@@ -146,14 +117,6 @@ function saveDatabase() {
 if (fs.existsSync(DB_FILE)) {
   try {
     data = JSON.parse(fs.readFileSync(DB_FILE, "utf-8"));
-    if (!data.teams) {
-      data.teams = {
-        Nubilers: { name: "Nubilers", color: "#ff007a", points: 0 },
-        Celibers: { name: "Celibers", color: "#00d2ff", points: 0 },
-      };
-    }
-    if (!data.itinerary) data.itinerary = [];
-    if (!data.tasks) data.tasks = [];
     if (!data.condemned) data.condemned = [];
   } catch (e) {
     console.log("Inizializzazione database predefinito.");
@@ -242,19 +205,17 @@ app.post("/api/upload-avatar", upload.single("avatar"), async (req, res) => {
     io.emit("update_scoreboard", { teams: data.teams, users: data.users });
     res.json({ success: true, avatarUrl: user.avatar, user });
   } catch (err) {
-    console.error("Errore upload avatar Cloudinary:", err);
-    res
-      .status(500)
-      .json({ error: "Errore durante il caricamento dell'immagine profilo." });
+    res.status(500).json({ error: "Errore durante il caricamento avatar." });
   }
 });
 
-// Upload Foto Condannato / Sposo (Admin)
+// Creazione o Modifica Condannato con controlli stile & immagine
 app.post(
-  "/api/admin/upload-condemned",
+  "/api/admin/save-condemned",
   upload.single("photo"),
   async (req, res) => {
     const {
+      id,
       name,
       nickname,
       role,
@@ -262,8 +223,9 @@ app.post(
       description,
       weakness,
       quote,
+      fitMode,
+      imgHeight,
       adminId,
-      id,
     } = req.body;
     const admin = data.users.find((u) => u.id === adminId);
     if (!admin || admin.role !== "admin")
@@ -281,27 +243,27 @@ app.post(
         );
         photoUrl = result.secure_url;
       } catch (err) {
-        return res
-          .status(500)
-          .json({ error: "Errore durante il caricamento della foto." });
+        return res.status(500).json({ error: "Errore upload foto." });
       }
     }
 
-    if (id) {
-      // Modifica
+    if (id && id !== "null" && id !== "undefined" && id !== "") {
+      // MODIFICA PROFILO ESISTENTE
       const target = data.condemned.find((c) => c.id === parseInt(id, 10));
       if (target) {
         target.name = (name || target.name).trim();
         target.nickname = (nickname || "").trim();
-        target.role = (role || "Sposo/a").trim();
-        target.team = team || "Celibers";
+        target.role = (role || target.role).trim();
+        target.team = team || target.team;
         target.photo = photoUrl || target.photo;
-        target.description = (description || "").trim();
+        target.fitMode = fitMode || target.fitMode || "cover-center";
+        target.imgHeight = imgHeight || target.imgHeight || "260px";
+        target.description = description ? description.trim() : "";
         target.weakness = (weakness || "").trim();
         target.quote = (quote || "").trim();
       }
     } else {
-      // Creazione
+      // CREA NUOVO
       const newCondemned = {
         id: Date.now(),
         name: (name || "Condannato").trim(),
@@ -310,8 +272,10 @@ app.post(
         team: team || "Celibers",
         photo:
           photoUrl ||
-          "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400&auto=format&fit=crop&q=80",
-        description: (description || "").trim(),
+          "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=600&auto=format&fit=crop&q=80",
+        fitMode: fitMode || "cover-center",
+        imgHeight: imgHeight || "260px",
+        description: description ? description.trim() : "",
         weakness: (weakness || "").trim(),
         quote: (quote || "").trim(),
       };
@@ -324,7 +288,7 @@ app.post(
   },
 );
 
-// Completamento Sfida con Prova
+// Completamento Sfida
 app.post("/api/complete-task", upload.single("media"), async (req, res) => {
   const { userId, taskId } = req.body;
   const user = data.users.find((u) => u.id === userId);
@@ -403,7 +367,7 @@ io.on("connection", (socket) => {
     feed: data.feed,
   });
 
-  // Admin: Elimina Condannato
+  // Elimina Condannato
   socket.on("admin_delete_condemned", ({ condemnedId, adminId }) => {
     const admin = data.users.find((u) => u.id === adminId);
     if (!admin || admin.role !== "admin") return;
@@ -413,7 +377,7 @@ io.on("connection", (socket) => {
     io.emit("update_condemned", data.condemned);
   });
 
-  // Admin: Sfide
+  // Sfide
   socket.on("admin_add_task", ({ title, points, adminId }) => {
     const admin = data.users.find((u) => u.id === adminId);
     if (!admin || admin.role !== "admin") return;
@@ -449,7 +413,7 @@ io.on("connection", (socket) => {
     io.emit("update_tasks", data.tasks);
   });
 
-  // Admin: Punti Squadra
+  // Punti Squadra
   socket.on("admin_give_team_points", ({ team, amount, adminId }) => {
     const admin = data.users.find((u) => u.id === adminId);
     if (!admin || admin.role !== "admin" || !data.teams[team]) return;
@@ -459,7 +423,7 @@ io.on("connection", (socket) => {
     io.emit("update_scoreboard", { teams: data.teams, users: data.users });
   });
 
-  // Admin: Moderazione Feed
+  // Moderazione Feed
   socket.on("admin_delete_post", ({ postId, adminId }) => {
     const adminUser = data.users.find((u) => u.id === adminId);
     if (!adminUser || adminUser.role !== "admin") return;
@@ -469,7 +433,7 @@ io.on("connection", (socket) => {
     io.emit("feed_updated", data.feed);
   });
 
-  // Admin: Itinerario
+  // Itinerario
   socket.on(
     "admin_add_itinerary",
     ({ day, time, title, description, location, adminId }) => {
@@ -477,17 +441,14 @@ io.on("connection", (socket) => {
       if (!admin || admin.role !== "admin") return;
 
       if (!data.itinerary) data.itinerary = [];
-
-      const newItem = {
+      data.itinerary.push({
         id: Date.now(),
         day: day.trim() || "Giorno 1",
         time: time.trim() || "12:00",
         title: title.trim(),
         description: (description || "").trim(),
         location: (location || "").trim(),
-      };
-
-      data.itinerary.push(newItem);
+      });
       saveDatabase();
       io.emit("update_itinerary", data.itinerary);
     },
@@ -504,7 +465,7 @@ io.on("connection", (socket) => {
     io.emit("update_itinerary", data.itinerary);
   });
 
-  // Feed Post
+  // Post Feed
   socket.on("new_post", ({ userId, user, text, team }) => {
     if (!text || !text.trim()) return;
     const author = data.users.find((u) => u.id === userId);
