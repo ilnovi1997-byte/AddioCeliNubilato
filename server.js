@@ -4,8 +4,7 @@ const { Server } = require("socket.io");
 const fs = require("fs");
 const path = require("path");
 const multer = require("multer");
-const { google } = require("googleapis");
-const { Readable } = require("stream");
+const cloudinary = require("cloudinary").v2;
 
 const app = express();
 const server = http.createServer(app);
@@ -13,78 +12,35 @@ const io = new Server(server, { cors: { origin: "*" } });
 
 const DB_FILE = path.join(__dirname, "database.json");
 const ADMIN_MASTER_PIN = process.env.ADMIN_PIN || "9999";
-const GDRIVE_FOLDER_ID = process.env.GDRIVE_FOLDER_ID || "";
 
-// Multer in memoria
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 40 * 1024 * 1024 },
+// Configurazione Cloudinary da variabili d'ambiente
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-// Configurazione Google Drive API
-let driveClient = null;
-try {
-  let credentials;
-  if (process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
-    credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
-  } else if (fs.existsSync(path.join(__dirname, "google-credentials.json"))) {
-    credentials = JSON.parse(
-      fs.readFileSync(path.join(__dirname, "google-credentials.json"), "utf-8"),
+// Multer in memoria RAM
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 40 * 1024 * 1024 }, // 40MB max
+});
+
+// Helper Upload verso Cloudinary
+function uploadToCloudinary(buffer, isVideo) {
+  return new Promise((resolve, reject) => {
+    const uploadStream = cloudinary.uploader.upload_stream(
+      {
+        resource_type: isVideo ? "video" : "image",
+        folder: "addio_celibato",
+      },
+      (error, result) => {
+        if (error) return reject(error);
+        resolve(result);
+      },
     );
-  }
-
-  if (credentials) {
-    const auth = new google.auth.GoogleAuth({
-      credentials,
-      scopes: ["https://www.googleapis.com/auth/drive"],
-    });
-    driveClient = google.drive({ version: "v3", auth });
-    console.log("✅ Google Drive API autenticata con successo.");
-  } else {
-    console.warn(
-      "⚠️ Credenziali Google non trovate. I file non verranno salvati su Drive.",
-    );
-  }
-} catch (err) {
-  console.error("Errore setup Google Drive:", err.message);
-}
-
-// Funzione helper upload Drive
-async function uploadFileToDrive(fileBuffer, originalName, mimeType) {
-  if (!driveClient || !GDRIVE_FOLDER_ID) {
-    throw new Error("Google Drive non configurato");
-  }
-
-  const ext = path.extname(originalName).toLowerCase();
-  const fileName = `media_${Date.now()}_${Math.random().toString(36).substr(2, 5)}${ext}`;
-
-  const stream = new Readable();
-  stream.push(fileBuffer);
-  stream.push(null);
-
-  const response = await driveClient.files.create({
-    requestBody: {
-      name: fileName,
-      parents: [GDRIVE_FOLDER_ID],
-    },
-    media: {
-      mimeType: mimeType,
-      body: stream,
-    },
-    fields: "id, name, webViewLink, webContentLink",
+    uploadStream.end(buffer);
   });
-
-  // Rendi il file leggibile pubblicamente dall'app
-  try {
-    await driveClient.permissions.create({
-      fileId: response.data.id,
-      requestBody: { role: "reader", type: "anyone" },
-    });
-  } catch (permErr) {
-    console.warn("Permesso pubblico non applicato:", permErr.message);
-  }
-
-  return response.data.id;
 }
 
 let data = {
@@ -135,53 +91,24 @@ function saveDatabase() {
 if (fs.existsSync(DB_FILE)) {
   try {
     data = JSON.parse(fs.readFileSync(DB_FILE, "utf-8"));
+    if (!data.teams) {
+      data.teams = {
+        Nubilers: { name: "Nubilers", color: "#ff007a", points: 0 },
+        Celibers: { name: "Celibers", color: "#00d2ff", points: 0 },
+      };
+    }
   } catch (e) {
-    console.log("Inizializzazione database di default.");
+    console.log("Inizializzazione database predefinito.");
   }
 }
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
-// Endpoint Proxy per servire foto e video da Google Drive in streaming diretto
-// Endpoint Proxy ottimizzato per streaming immagini e video da Google Drive
-// Endpoint Proxy ottimizzato per streaming immagini e video da Google Drive
-app.get("/api/media/:fileId", async (req, res) => {
-  if (!driveClient) return res.status(503).send("Google Drive non configurato");
-
-  try {
-    const fileId = req.params.fileId;
-
-    // 1. Recupera i metadati per impostare il Content-Type corretto
-    const meta = await driveClient.files.get({
-      fileId: fileId,
-      fields: "mimeType, size",
-    });
-
-    res.setHeader(
-      "Content-Type",
-      meta.data.mimeType || "application/octet-stream",
-    );
-    if (meta.data.size) {
-      res.setHeader("Content-Length", meta.data.size);
-    }
-    res.setHeader("Cache-Control", "public, max-age=86400"); // Cache 24h per velocizzare il caricamento
-
-    // 2. Esegui lo stream del file
-    const driveRes = await driveClient.files.get(
-      { fileId: fileId, alt: "media" },
-      { responseType: "stream" },
-    );
-
-    driveRes.data.pipe(res);
-  } catch (err) {
-    console.error("Errore recupero media da Drive:", err.message);
-    res.status(404).send("Media non trovato");
-  }
-});
 app.post("/api/login", (req, res) => {
   const { name, pin, adminCode } = req.body;
-  if (!name || !pin) return res.status(400).json({ error: "Dati mancanti" });
+  if (!name || !pin)
+    return res.status(400).json({ error: "Inserisci nome e PIN." });
 
   const cleanName = name.trim();
   const cleanPin = pin.trim();
@@ -208,7 +135,7 @@ app.post("/api/login", (req, res) => {
     saveDatabase();
   } else {
     if (user.pin !== cleanPin)
-      return res.status(401).json({ error: "PIN errato" });
+      return res.status(401).json({ error: "PIN errato." });
     if (isAdmin && user.role !== "admin") {
       user.role = "admin";
       saveDatabase();
@@ -220,41 +147,41 @@ app.post("/api/login", (req, res) => {
 
 app.post("/api/select-team", (req, res) => {
   const { userId, team } = req.body;
+  if (!["Nubilers", "Celibers"].includes(team))
+    return res.status(400).json({ error: "Squadra non valida." });
+
   const user = data.users.find((u) => u.id === userId);
-  if (!user) return res.status(404).json({ error: "Utente non trovato" });
+  if (!user) return res.status(404).json({ error: "Utente non trovato." });
 
   user.team = team;
   saveDatabase();
+
   io.emit("update_scoreboard", { teams: data.teams, users: data.users });
   res.json({ success: true, user });
 });
 
-// Upload Prova + Salvataggio su Google Drive
+// Upload Prova + Salvataggio Diretto su Cloudinary
 app.post("/api/complete-task", upload.single("media"), async (req, res) => {
   const { userId, taskId } = req.body;
   const user = data.users.find((u) => u.id === userId);
   const task = data.tasks.find((t) => t.id === parseInt(taskId, 10));
 
   if (!user || !task || !user.team) {
-    return res.status(400).json({ error: "Richiesta non valida" });
+    return res.status(400).json({ error: "Richiesta non valida." });
   }
 
   let mediaObj = null;
 
   if (req.file) {
+    const isVideo = req.file.mimetype.startsWith("video");
     try {
-      const driveFileId = await uploadFileToDrive(
-        req.file.buffer,
-        req.file.originalname,
-        req.file.mimetype,
-      );
-      const isVideo = req.file.mimetype.startsWith("video");
+      const result = await uploadToCloudinary(req.file.buffer, isVideo);
       mediaObj = {
-        url: `/api/media/${driveFileId}`,
+        url: result.secure_url,
         type: isVideo ? "video" : "image",
       };
-    } catch (driveErr) {
-      console.error("Errore caricamento su Google Drive:", driveErr.message);
+    } catch (err) {
+      console.error("Errore durante l'upload su Cloudinary:", err.message);
     }
   }
 
