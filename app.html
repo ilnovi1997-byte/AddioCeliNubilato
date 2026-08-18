@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Clash Dashboard ⚔️</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <script src="/socket.io/socket.io.js"></script>
+</head>
+<body class="app-body">
+    <!-- Header Utente -->
+    <header class="app-header">
+        <div class="user-info" onclick="openAvatarModal()" title="Tocca per cambiare foto profilo">
+            <div class="avatar-container" id="avatarContainer">
+                <div class="avatar-fallback">😎</div>
+                <span class="avatar-edit-badge">📷</span>
+            </div>
+            <div>
+                <strong id="userName">Ospite</strong>
+                <span class="user-badge" id="userTeamBadge">Nessuna Squadra</span>
+            </div>
+        </div>
+        <div class="score-display">
+            <span class="score-num" id="myPoints">0</span>
+            <span class="score-label">Miei Pt</span>
+        </div>
+    </header>
+
+    <!-- Banner Punti Squadre -->
+    <section class="clash-banner">
+        <div class="clash-team nubilers">
+            <span>💖 NUBILERS</span>
+            <strong id="nubilersPoints">0 pt</strong>
+        </div>
+        <div class="clash-vs">VS</div>
+        <div class="clash-team celibers">
+            <span>💙 CELIBERS</span>
+            <strong id="celibersPoints">0 pt</strong>
+        </div>
+    </section>
+
+    <!-- Nav Bar -->
+    <nav class="nav-bar">
+        <button class="nav-item active" onclick="switchTab('condemned')">
+            <span>⛓️</span>
+            <small>Condannati</small>
+        </button>
+        <button class="nav-item" onclick="switchTab('itinerary')">
+            <span>🗺️</span>
+            <small>Itinerario</small>
+        </button>
+        <button class="nav-item" onclick="switchTab('tasks')">
+            <span>🎯</span>
+            <small>Sfide</small>
+        </button>
+        <button class="nav-item" onclick="switchTab('ranking')">
+            <span>🏆</span>
+            <small>Classifica</small>
+        </button>
+        <button class="nav-item" onclick="switchTab('feed')">
+            <span>💬</span>
+            <small>Feed</small>
+        </button>
+        <button class="nav-item" id="adminTabBtn" style="display: none;" onclick="switchTab('admin')">
+            <span>⚙️</span>
+            <small>Admin</small>
+        </button>
+        <button class="nav-item" onclick="logout()">
+            <span>🚪</span>
+            <small>Esci</small>
+        </button>
+    </nav>
+
+    <main class="app-container">
+        <!-- Tab 1: I CONDANNATI -->
+        <section id="tab-condemned" class="tab-panel active">
+            <div class="section-title">
+                <h2>I Condannati a Nozze 👰🤵</h2>
+                <p>Schede profilo, foto e punti deboli degli sposi</p>
+            </div>
+            <div id="condemnedList" class="condemned-grid"></div>
+        </section>
+
+        <!-- Tab 2: Itinerario -->
+        <section id="tab-itinerary" class="tab-panel">
+            <div class="section-title">
+                <h2>Programma di Viaggio ✈️</h2>
+                <p>Tutti gli orari, le tappe e le attività previste</p>
+            </div>
+            <div id="dayFilterContainer" class="day-filter-container"></div>
+            <div id="itineraryList" class="itinerary-timeline"></div>
+        </section>
+
+        <!-- Tab 3: Sfide -->
+        <section id="tab-tasks" class="tab-panel">
+            <div class="section-title">
+                <h2>Sfide Ripetibili</h2>
+                <p>Completa le prove, allega la foto/video e fai vincere il tuo team!</p>
+            </div>
+            <div id="taskList" class="task-list"></div>
+        </section>
+
+        <!-- Tab 4: Classifica -->
+        <section id="tab-ranking" class="tab-panel">
+            <div class="section-title">
+                <h2>Top Contributors</h2>
+                <p>Classifica individuale</p>
+            </div>
+            <div id="rankingList" class="ranking-list"></div>
+        </section>
+
+        <!-- Tab 5: Feed -->
+        <section id="tab-feed" class="tab-panel">
+            <div class="section-title">
+                <h2>Live Event Feed</h2>
+            </div>
+            <div class="feed-input-box">
+                <input type="text" id="feedInput" placeholder="Scrivi un messaggio o sfottò..." maxlength="140">
+                <button id="feedSendBtn" class="btn-send">Invia</button>
+            </div>
+            <div id="feedList" class="feed-list"></div>
+        </section>
+
+        <!-- Tab 6: Admin -->
+        <section id="tab-admin" class="tab-panel">
+            <div class="section-title">
+                <h2>Pannello Admin ⚙️</h2>
+            </div>
+
+            <!-- Form Condannato (Crea / Modifica) -->
+            <div class="admin-card" id="adminCondemnedCard">
+                <h3 id="adminCondemnedFormTitle">👰🤵 Aggiungi o Modifica Condannato</h3>
+                <input type="hidden" id="condId">
+                <input type="hidden" id="condExistingPhoto">
+
+                <div class="form-row-2">
+                    <input type="text" id="condName" placeholder="Nome (es. Alessandro)" required>
+                    <input type="text" id="condNickname" placeholder="Soprannome (es. Il Sopravvissuto)">
+                </div>
+
+                <div class="form-row-2">
+                    <select id="condRole">
+                        <option value="Sposo">Sposo 🤵</option>
+                        <option value="Sposa">Sposa 👰</option>
+                        <option value="Testimone">Testimone 🥂</option>
+                    </select>
+                    <select id="condTeam">
+                        <option value="Celibers">Team Celibers (Sposo)</option>
+                        <option value="Nubilers">Team Nubilers (Sposa)</option>
+                    </select>
+                </div>
+
+                <!-- Controlli Dimensione & Inquadratura Immagine -->
+                <div class="form-row-2">
+                    <div>
+                        <label class="small-label">Ritaglio / Inquadratura</label>
+                        <select id="condFitMode">
+                            <option value="cover-top">Riempi - Focus Alto (Volto)</option>
+                            <option value="cover-center">Riempi - Centro (Cover)</option>
+                            <option value="contain">Intera (Contain - Senza Tagli)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="small-label">Altezza Scheda Foto</label>
+                        <select id="condImgHeight">
+                            <option value="200px">Compatta (200px)</option>
+                            <option value="260px" selected>Media (260px)</option>
+                            <option value="340px">Grande (340px)</option>
+                            <option value="420px">Extra Large (420px)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <label class="small-label" style="margin-top: 6px;">Descrizione / Bio (Supporta <code>&lt;b&gt;grassetto&lt;/b&gt;</code>, <code>&lt;br&gt;</code>, elenchi)</label>
+                <textarea id="condDesc" placeholder="Descrizione simpatica... (es. Ultimi giorni di libertà.<br>• Beve birra tiepida.<br>• Tende a sparire.)" rows="3"></textarea>
+
+                <input type="text" id="condWeakness" placeholder="⚠️ Punto debole (es. I gin tonic dopo le 01:00)">
+                <input type="text" id="condQuote" placeholder="💬 Frase celebre (es. 'È l'ultimo!')">
+
+                <label class="btn-secondary" style="display:block; text-align:center; margin-bottom:10px; cursor:pointer;">
+                    <span>📷 Carica/Sostituisci Foto</span>
+                    <input type="file" id="condPhotoInput" accept="image/*" style="display:none;">
+                </label>
+                <div id="condPhotoPreview" style="margin-bottom:10px; text-align:center;"></div>
+
+                <div style="display: flex; gap: 8px;">
+                    <button class="btn-secondary" id="cancelCondemnedEditBtn" style="display:none;" onclick="resetCondemnedForm()">Annulla</button>
+                    <button class="btn-primary" id="saveCondemnedBtn" onclick="adminSubmitCondemned()">Salva Profilo Condannato 💾</button>
+                </div>
+            </div>
+
+            <!-- Crea Nuova Sfida -->
+            <div class="admin-card">
+                <h3>➕ Crea Nuova Sfida</h3>
+                <input type="text" id="newTaskTitle" placeholder="Testo della sfida">
+                <input type="number" id="newTaskPoints" placeholder="Punti" value="50">
+                <button class="btn-primary" onclick="adminCreateTask()">Aggiungi Sfida</button>
+            </div>
+
+            <!-- Gestisci Sfide Esistenti -->
+            <div class="admin-card">
+                <h3>✏️ Gestisci Sfide Esistenti</h3>
+                <div id="adminTaskManagementList" class="admin-task-manage-list"></div>
+            </div>
+
+            <!-- Itinerario -->
+            <div class="admin-card">
+                <h3>🗺️ Aggiungi Tappa Itinerario</h3>
+                <input type="text" id="itinDay" placeholder="Giorno (es. Giorno 1, Venerdì...)">
+                <input type="text" id="itinTime" placeholder="Orario (es. 20:30)">
+                <input type="text" id="itinTitle" placeholder="Titolo Tappa">
+                <input type="text" id="itinLocation" placeholder="Luogo (es. Bar del Porto)">
+                <textarea id="itinDesc" placeholder="Dettagli / Consigli" rows="2"></textarea>
+                <button class="btn-primary" onclick="adminCreateItinerary()">Aggiungi all'Itinerario</button>
+            </div>
+
+            <!-- Punti Squadra -->
+            <div class="admin-card">
+                <h3>⭐ Bonus / Malus Squadra</h3>
+                <select id="adminTeamSelect">
+                    <option value="Nubilers">Nubilers</option>
+                    <option value="Celibers">Celibers</option>
+                </select>
+                <input type="number" id="adminTeamPoints" placeholder="Punti (+50 o -50)">
+                <button class="btn-primary" onclick="adminGiveTeamPoints()">Assegna</button>
+            </div>
+            <div class="admin-card">
+                <h3>💾 Esporta e Salva Modifiche</h3>
+                <p class="subtitle" style="text-align: left; margin-bottom: 10px;">
+                    Scarica il file aggiornato con tutte le modifiche fatte dal sito per renderle definitive su GitHub.
+                </p>
+                <button class="btn-primary" onclick="exportDatabaseFile()">📥 Scarica database.json</button>
+            </div>
+        </section>
+    </main>
+
+    <!-- Modal Sfida Prova -->
+    <div id="taskModal" class="modal-overlay" style="display: none;">
+        <div class="modal-card">
+            <h3 id="modalTaskTitle">Completa Sfida</h3>
+            <p id="modalTaskPoints" class="modal-points">+50 pt</p>
+            <div class="upload-area">
+                <label for="mediaInput" class="upload-label">
+                    <span>📷 Carica Foto o Video</span>
+                    <small>Scegli dalla galleria o scatta al momento</small>
+                </label>
+                <input type="file" id="mediaInput" accept="image/*,video/*">
+                <div id="mediaPreviewContainer" class="media-preview"></div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn-secondary" onclick="closeTaskModal()">Annulla</button>
+                <button class="btn-primary" id="confirmTaskBtn" onclick="submitTaskCompletion()">Conferma e Invia 🚀</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Modifica Sfida -->
+    <div id="editTaskModal" class="modal-overlay" style="display: none;">
+        <div class="modal-card">
+            <h3>✏️ Modifica Sfida</h3>
+            <p class="modal-points">Aggiorna testo o punteggio</p>
+            <div class="form-group" style="margin-top: 10px;">
+                <label for="editTaskTitleInput">Titolo Sfida</label>
+                <input type="text" id="editTaskTitleInput">
+            </div>
+            <div class="form-group" style="margin-top: 10px; margin-bottom: 16px;">
+                <label for="editTaskPointsInput">Punti Assegnati</label>
+                <input type="number" id="editTaskPointsInput">
+            </div>
+            <div class="modal-actions">
+                <button class="btn-secondary" onclick="closeEditTaskModal()">Annulla</button>
+                <button class="btn-primary" onclick="submitEditTask()">Salva Modifiche 💾</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Avatar -->
+    <div id="avatarModal" class="modal-overlay" style="display: none;">
+        <div class="modal-card">
+            <h3>La tua Immagine Profilo</h3>
+            <p class="modal-points">Personalizza la tua icona visibile a tutti!</p>
+            <div class="upload-area">
+                <div id="avatarPreviewBox" class="avatar-preview-box">
+                    <span style="font-size: 3.5rem;">😎</span>
+                </div>
+                <label for="avatarFileInput" class="upload-label" style="margin-top: 12px;">
+                    <span class="btn-secondary" style="display: inline-block;">Scegli Foto 📸</span>
+                </label>
+                <input type="file" id="avatarFileInput" accept="image/*">
+            </div>
+            <div class="modal-actions">
+                <button class="btn-secondary" onclick="closeAvatarModal()">Chiudi</button>
+                <button class="btn-primary" id="saveAvatarBtn" onclick="submitAvatar()">Salva Profilo 💾</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/app.js"></script>
+</body>
+</html>

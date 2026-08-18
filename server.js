@@ -126,6 +126,17 @@ if (fs.existsSync(DB_FILE)) {
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
+app.get("/api/admin/export-database", (req, res) => {
+  const { adminId } = req.query;
+  const admin = data.users.find((u) => u.id === adminId);
+  if (!admin || admin.role !== "admin")
+    return res.status(403).send("Accesso negato");
+
+  res.setHeader("Content-Type", "application/json");
+  res.setHeader("Content-Disposition", "attachment; filename=database.json");
+  res.send(JSON.stringify(data, null, 2));
+});
+
 // Login
 app.post("/api/login", (req, res) => {
   const { name, pin, adminCode } = req.body;
