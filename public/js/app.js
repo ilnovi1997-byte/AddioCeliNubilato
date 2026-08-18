@@ -771,3 +771,6 @@ window.logout = () => {
   localStorage.removeItem("party_user");
   window.location.href = "/index.html";
 };
+window.exportDatabaseFile = () => {
+  window.location.href = `/api/admin/export-database?adminId=${currentUser.id}`;
+};
