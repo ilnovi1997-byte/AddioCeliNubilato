@@ -3,10 +3,36 @@ const http = require("http");
 const { Server } = require("socket.io");
 const fs = require("fs");
 const path = require("path");
+const multer = require("multer");
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
+
+// Assicura l'esistenza della cartella uploads
+const UPLOADS_DIR = path.join(__dirname, "public", "uploads");
+if (!fs.existsSync(UPLOADS_DIR)) {
+  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+}
+
+// Configurazione storage Multer
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, UPLOADS_DIR),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    const uniqueName =
+      "media_" +
+      Date.now() +
+      "_" +
+      Math.random().toString(36).substr(2, 6) +
+      ext;
+    cb(null, uniqueName);
+  },
+});
+const upload = multer({
+  storage,
+  limits: { fileSize: 40 * 1024 * 1024 }, // Limite 40MB per video brevi/foto HD
+});
 
 const DB_FILE = path.join(__dirname, "database.json");
 const ADMIN_MASTER_PIN = process.env.ADMIN_PIN || "9999";
@@ -16,7 +42,7 @@ let data = {
     Nubilers: { name: "Nubilers", color: "#ff007a", points: 0 },
     Celibers: { name: "Celibers", color: "#00d2ff", points: 0 },
   },
-  users: [], // { id, name, pin, team, points, role }
+  users: [],
   tasks: [
     { id: 1, title: "Bevi uno shot senza usare le mani", points: 50 },
     { id: 2, title: "Fai un brindisi imbarazzante allo sposo", points: 100 },
@@ -43,6 +69,7 @@ let data = {
       text: "Benvenuti alla sfida Nubilers vs Celibers! 🔥",
       time: "18:00",
       team: null,
+      media: null,
     },
   ],
 };
@@ -73,7 +100,7 @@ if (fs.existsSync(DB_FILE)) {
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
-// API: Login / Registrazione
+// API: Login
 app.post("/api/login", (req, res) => {
   const { name, pin, adminCode } = req.body;
   if (!name || !pin)
@@ -92,7 +119,7 @@ app.post("/api/login", (req, res) => {
       id: "u_" + Date.now() + "_" + Math.random().toString(36).substr(2, 4),
       name: cleanName,
       pin: cleanPin,
-      team: null, // Scelta al passo successivo
+      team: null,
       points: 0,
       role: isAdmin
         ? "admin"
@@ -117,9 +144,8 @@ app.post("/api/login", (req, res) => {
 // API: Selezione Squadra
 app.post("/api/select-team", (req, res) => {
   const { userId, team } = req.body;
-  if (!["Nubilers", "Celibers"].includes(team)) {
+  if (!["Nubilers", "Celibers"].includes(team))
     return res.status(400).json({ error: "Squadra non valida." });
-  }
 
   const user = data.users.find((u) => u.id === userId);
   if (!user) return res.status(404).json({ error: "Utente non trovato." });
@@ -129,6 +155,65 @@ app.post("/api/select-team", (req, res) => {
 
   io.emit("update_scoreboard", { teams: data.teams, users: data.users });
   res.json({ success: true, user });
+});
+
+// API: Completamento Sfida con Upload Foto/Video Opzionale
+app.post("/api/complete-task", upload.single("media"), (req, res) => {
+  const { userId, taskId } = req.body;
+  const user = data.users.find((u) => u.id === userId);
+  const task = data.tasks.find((t) => t.id === parseInt(taskId, 10));
+
+  if (!user || !task || !user.team) {
+    return res.status(400).json({ error: "Richiesta non valida." });
+  }
+
+  user.points += task.points;
+  data.teams[user.team].points += task.points;
+
+  let mediaObj = null;
+  if (req.file) {
+    const isVideo = req.file.mimetype.startsWith("video");
+    mediaObj = {
+      url: "/uploads/" + req.file.filename,
+      type: isVideo ? "video" : "image",
+    };
+  }
+
+  const post = {
+    id: Date.now(),
+    user: `${user.name} (${user.team})`,
+    text: `ha completato "${task.title}" (+${task.points} pt per ${user.team})! 📸`,
+    time: new Date().toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    }),
+    team: user.team,
+    media: mediaObj,
+  };
+
+  data.feed.unshift(post);
+  if (data.feed.length > 80) data.feed.pop();
+
+  saveDatabase();
+
+  io.emit("update_scoreboard", {
+    teams: data.teams,
+    users: data.users.map((u) => ({
+      id: u.id,
+      name: u.name,
+      team: u.team,
+      points: u.points,
+      role: u.role,
+    })),
+  });
+  io.emit("broadcast_post", post);
+
+  res.json({
+    success: true,
+    post,
+    userPoints: user.points,
+    teamPoints: data.teams[user.team].points,
+  });
 });
 
 // Socket.io Real-Time
@@ -146,45 +231,6 @@ io.on("connection", (socket) => {
     feed: data.feed,
   });
 
-  // Sfida completata (RIPETIBILE)
-  socket.on("complete_task", ({ userId, taskId }) => {
-    const user = data.users.find((u) => u.id === userId);
-    const task = data.tasks.find((t) => t.id === taskId);
-
-    if (user && task && user.team) {
-      user.points += task.points;
-      data.teams[user.team].points += task.points;
-
-      const autoPost = {
-        id: Date.now(),
-        user: `${user.name} (${user.team})`,
-        text: `ha completato "${task.title}" (+${task.points} pt per ${user.team})! 🎯`,
-        time: new Date().toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-        team: user.team,
-      };
-      data.feed.unshift(autoPost);
-      if (data.feed.length > 60) data.feed.pop();
-
-      saveDatabase();
-
-      io.emit("update_scoreboard", {
-        teams: data.teams,
-        users: data.users.map((u) => ({
-          id: u.id,
-          name: u.name,
-          team: u.team,
-          points: u.points,
-          role: u.role,
-        })),
-      });
-      io.emit("broadcast_post", autoPost);
-    }
-  });
-
-  // Admin: Aggiungi sfida
   socket.on("admin_add_task", ({ title, points, adminId }) => {
     const adminUser = data.users.find((u) => u.id === adminId);
     if (!adminUser || adminUser.role !== "admin") return;
@@ -196,11 +242,9 @@ io.on("connection", (socket) => {
     };
     data.tasks.push(newTask);
     saveDatabase();
-
     io.emit("update_tasks", data.tasks);
   });
 
-  // Admin: Punti manuali alla squadra o al giocatore
   socket.on("admin_give_team_points", ({ team, amount, adminId }) => {
     const adminUser = data.users.find((u) => u.id === adminId);
     if (!adminUser || adminUser.role !== "admin" || !data.teams[team]) return;
@@ -219,7 +263,6 @@ io.on("connection", (socket) => {
     });
   });
 
-  // Post manuale nel feed
   socket.on("new_post", ({ user, text, team }) => {
     if (!text || !text.trim()) return;
     const post = {
@@ -231,6 +274,7 @@ io.on("connection", (socket) => {
         minute: "2-digit",
       }),
       team: team || null,
+      media: null,
     };
     data.feed.unshift(post);
     saveDatabase();

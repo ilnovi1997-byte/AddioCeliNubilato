@@ -23,7 +23,7 @@
         </div>
     </header>
 
-    <!-- Barra Scontro Squadre -->
+    <!-- Banner Punti Squadre -->
     <section class="clash-banner">
         <div class="clash-team nubilers">
             <span>💖 NUBILERS</span>
@@ -36,7 +36,7 @@
         </div>
     </section>
 
-    <!-- Nav Tabs -->
+    <!-- Nav Bar -->
     <nav class="nav-bar">
         <button class="nav-item active" onclick="switchTab('tasks')">
             <span>🎯</span>
@@ -65,7 +65,7 @@
         <section id="tab-tasks" class="tab-panel active">
             <div class="section-title">
                 <h2>Sfide Ripetibili</h2>
-                <p>Ogni volta che completi una sfida guadagni punti per la tua squadra!</p>
+                <p>Completa le prove, allega la prova fotografica/video e fai vincere il tuo team!</p>
             </div>
             <div id="taskList" class="task-list"></div>
         </section>
@@ -74,7 +74,7 @@
         <section id="tab-ranking" class="tab-panel">
             <div class="section-title">
                 <h2>Top Contributors</h2>
-                <p>Classifica individuale per squadra</p>
+                <p>Classifica individuale</p>
             </div>
             <div id="rankingList" class="ranking-list"></div>
         </section>
@@ -85,7 +85,7 @@
                 <h2>Live Event Feed</h2>
             </div>
             <div class="feed-input-box">
-                <input type="text" id="feedInput" placeholder="Messaggio o provocazione..." maxlength="140">
+                <input type="text" id="feedInput" placeholder="Scrivi un messaggio o sfottò..." maxlength="140">
                 <button id="feedSendBtn" class="btn-send">Invia</button>
             </div>
             <div id="feedList" class="feed-list"></div>
@@ -113,6 +113,28 @@
             </div>
         </section>
     </main>
+
+    <!-- Modal Upload Prova -->
+    <div id="taskModal" class="modal-overlay" style="display: none;">
+        <div class="modal-card">
+            <h3 id="modalTaskTitle">Completa Sfida</h3>
+            <p id="modalTaskPoints" class="modal-points">+50 pt</p>
+            
+            <div class="upload-area">
+                <label for="mediaInput" class="upload-label">
+                    <span>📷 Carica Foto o Video</span>
+                    <small>Puoi scattare una foto/video o sceglierne uno dalla galleria</small>
+                </label>
+                <input type="file" id="mediaInput" accept="image/*,video/*" capture="environment">
+                <div id="mediaPreviewContainer" class="media-preview"></div>
+            </div>
+
+            <div class="modal-actions">
+                <button class="btn-secondary" onclick="closeTaskModal()">Annulla</button>
+                <button class="btn-primary" id="confirmTaskBtn" onclick="submitTaskCompletion()">Conferma e Invia 🚀</button>
+            </div>
+        </div>
+    </div>
 
     <script src="/js/app.js"></script>
 </body>

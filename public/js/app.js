@@ -10,6 +10,7 @@ let currentTasks = [];
 let currentUsers = [];
 let currentFeed = [];
 let currentTeams = { Nubilers: { points: 0 }, Celibers: { points: 0 } };
+let selectedTaskId = null;
 
 // Setup Header
 document.getElementById("userName").textContent = currentUser.name;
@@ -78,8 +79,8 @@ function renderTasks() {
                 <h4>${t.title}</h4>
                 <span class="task-points">+${t.points} PT PER ${currentUser.team.toUpperCase()}</span>
             </div>
-            <button class="btn-task" onclick="completeTask(${t.id})">
-                Completa +
+            <button class="btn-task" onclick="openTaskModal(${t.id})">
+                Completa 📷
             </button>
         </div>
     `,
@@ -114,6 +115,24 @@ function renderFeed() {
       const teamTag = p.team
         ? `<span class="tag-${p.team.toLowerCase()}">[${p.team}]</span>`
         : "";
+
+      let mediaHtml = "";
+      if (p.media) {
+        if (p.media.type === "video") {
+          mediaHtml = `
+                    <div class="feed-media-wrapper">
+                        <video controls playsinline preload="metadata" class="feed-media">
+                            <source src="${p.media.url}">
+                        </video>
+                    </div>`;
+        } else {
+          mediaHtml = `
+                    <div class="feed-media-wrapper">
+                        <img src="${p.media.url}" alt="Prova completata" class="feed-media" loading="lazy">
+                    </div>`;
+        }
+      }
+
       return `
             <div class="feed-card ${p.team ? "feed-" + p.team.toLowerCase() : ""}">
                 <div class="feed-card-header">
@@ -121,17 +140,88 @@ function renderFeed() {
                     <span>${p.time}</span>
                 </div>
                 <div class="feed-text">${p.text}</div>
+                ${mediaHtml}
             </div>
         `;
     })
     .join("");
 }
 
-window.completeTask = (taskId) => {
-  socket.emit("complete_task", {
-    userId: currentUser.id,
-    taskId: taskId,
-  });
+// Gestione Modal Completamento Sfida & Upload
+window.openTaskModal = (taskId) => {
+  const task = currentTasks.find((t) => t.id === taskId);
+  if (!task) return;
+
+  selectedTaskId = taskId;
+  document.getElementById("modalTaskTitle").textContent = task.title;
+  document.getElementById("modalTaskPoints").textContent =
+    `+${task.points} Punti per i ${currentUser.team}`;
+
+  // Reset input file e anteprima
+  const mediaInput = document.getElementById("mediaInput");
+  mediaInput.value = "";
+  document.getElementById("mediaPreviewContainer").innerHTML = "";
+
+  document.getElementById("taskModal").style.display = "flex";
+};
+
+window.closeTaskModal = () => {
+  document.getElementById("taskModal").style.display = "none";
+  selectedTaskId = null;
+};
+
+// Anteprima media caricato
+document.getElementById("mediaInput").addEventListener("change", function (e) {
+  const file = e.target.files[0];
+  const previewContainer = document.getElementById("mediaPreviewContainer");
+  previewContainer.innerHTML = "";
+
+  if (!file) return;
+
+  const fileUrl = URL.createObjectURL(file);
+  if (file.type.startsWith("video/")) {
+    previewContainer.innerHTML = `<video src="${fileUrl}" controls class="preview-element"></video>`;
+  } else {
+    previewContainer.innerHTML = `<img src="${fileUrl}" class="preview-element" alt="Anteprima">`;
+  }
+});
+
+// Invio prova con upload
+window.submitTaskCompletion = async () => {
+  if (!selectedTaskId) return;
+
+  const confirmBtn = document.getElementById("confirmTaskBtn");
+  const fileInput = document.getElementById("mediaInput");
+  const file = fileInput.files[0];
+
+  const formData = new FormData();
+  formData.append("userId", currentUser.id);
+  formData.append("taskId", selectedTaskId);
+  if (file) {
+    formData.append("media", file);
+  }
+
+  confirmBtn.disabled = true;
+  confirmBtn.textContent = "Caricamento in corso...";
+
+  try {
+    const res = await fetch("/api/complete-task", {
+      method: "POST",
+      body: formData,
+    });
+    const data = await res.json();
+
+    if (res.ok) {
+      closeTaskModal();
+    } else {
+      alert(data.error || "Errore durante l'invio della prova.");
+    }
+  } catch (err) {
+    alert("Errore di connessione durante l'upload.");
+  } finally {
+    confirmBtn.disabled = false;
+    confirmBtn.textContent = "Conferma e Invia 🚀";
+  }
 };
 
 // Admin Actions
@@ -157,7 +247,7 @@ window.adminGiveTeamPoints = () => {
   document.getElementById("adminTeamPoints").value = "";
 };
 
-// Feed
+// Feed text message
 document.getElementById("feedSendBtn").addEventListener("click", () => {
   const input = document.getElementById("feedInput");
   if (!input.value.trim()) return;
