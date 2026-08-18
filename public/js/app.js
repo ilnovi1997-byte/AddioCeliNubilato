@@ -11,9 +11,11 @@ let currentUsers = [];
 let currentFeed = [];
 let currentTeams = { Nubilers: { points: 0 }, Celibers: { points: 0 } };
 let currentItinerary = [];
+let currentCondemned = [];
 let selectedDayFilter = "Tutti";
 let selectedTaskId = null;
 let editingTaskId = null;
+let editingCondemnedId = null;
 
 function getAvatarHtml(avatarUrl, extraClass = "") {
   if (avatarUrl) {
@@ -50,13 +52,20 @@ socket.on("init_data", (data) => {
   currentFeed = data.feed;
   currentTeams = data.teams;
   currentItinerary = data.itinerary || [];
+  currentCondemned = data.condemned || [];
 
   renderTeams();
+  renderCondemned();
   renderTasks();
   renderRanking();
   renderFeed();
   renderItinerary();
   renderAdminTaskList();
+});
+
+socket.on("update_condemned", (condemned) => {
+  currentCondemned = condemned;
+  renderCondemned();
 });
 
 socket.on("update_tasks", (tasks) => {
@@ -101,6 +110,58 @@ function renderTeams() {
     `${currentTeams.Nubilers.points} pt`;
   document.getElementById("celibersPoints").textContent =
     `${currentTeams.Celibers.points} pt`;
+}
+
+function renderCondemned() {
+  const container = document.getElementById("condemnedList");
+  if (!container) return;
+
+  if (currentCondemned.length === 0) {
+    container.innerHTML = `<div class="empty-state">Nessun condannato registrato 👰🤵</div>`;
+    return;
+  }
+
+  container.innerHTML = currentCondemned
+    .map((c) => {
+      const teamBorder = c.team ? `team-border-${c.team.toLowerCase()}` : "";
+      const deleteBtn =
+        currentUser.role === "admin"
+          ? `<button class="btn-action-small btn-delete" onclick="adminDeleteCondemned(${c.id})" style="position: absolute; top: 12px; right: 12px;">🗑️</button>`
+          : "";
+
+      return `
+            <div class="condemned-card ${teamBorder}">
+                ${deleteBtn}
+                <div class="condemned-photo-wrapper">
+                    <img src="${c.photo}" alt="${c.name}" class="condemned-photo">
+                    <span class="condemned-role-badge badge-${c.team ? c.team.toLowerCase() : "neutral"}">${c.role} (${c.team})</span>
+                </div>
+                <div class="condemned-body">
+                    <h3 class="condemned-name">${c.name}</h3>
+                    ${c.nickname ? `<div class="condemned-nickname">"${c.nickname}"</div>` : ""}
+                    
+                    <p class="condemned-desc">${c.description || ""}</p>
+                    
+                    ${
+                      c.weakness
+                        ? `
+                        <div class="condemned-info-pill">
+                            <strong>⚠️ Punto Debole:</strong> ${c.weakness}
+                        </div>`
+                        : ""
+                    }
+
+                    ${
+                      c.quote
+                        ? `
+                        <div class="condemned-quote">${c.quote}</div>`
+                        : ""
+                    }
+                </div>
+            </div>
+        `;
+    })
+    .join("");
 }
 
 function renderTasks() {
@@ -155,7 +216,7 @@ function renderAdminTaskList() {
                 <small>${t.points} pt</small>
             </div>
             <div class="admin-task-row-actions">
-                <button class="btn-action-small btn-edit" onclick="openEditTaskModal(${t.id})">✏️ Modifica</button>
+                <button class="btn-action-small btn-edit" onclick="openEditTaskModal(${t.id})">✏️</button>
                 <button class="btn-action-small btn-delete" onclick="adminDeleteTask(${t.id})">🗑️</button>
             </div>
         </div>
@@ -398,14 +459,83 @@ window.submitEditTask = () => {
 
 window.adminDeleteTask = (taskId) => {
   if (confirm("Sei sicuro di voler eliminare questa sfida?")) {
-    socket.emit("admin_delete_task", {
-      taskId: taskId,
+    socket.emit("admin_delete_task", { taskId, adminId: currentUser.id });
+  }
+};
+
+// Admin Condannati
+document
+  .getElementById("condPhotoInput")
+  .addEventListener("change", function (e) {
+    const file = e.target.files[0];
+    const preview = document.getElementById("condPhotoPreview");
+    if (file) {
+      preview.innerHTML = `<img src="${URL.createObjectURL(file)}" style="width:80px; height:80px; border-radius:50%; object-fit:cover;">`;
+    }
+  });
+
+window.adminSubmitCondemned = async () => {
+  const name = document.getElementById("condName").value;
+  const nickname = document.getElementById("condNickname").value;
+  const role = document.getElementById("condRole").value;
+  const team = document.getElementById("condTeam").value;
+  const description = document.getElementById("condDesc").value;
+  const weakness = document.getElementById("condWeakness").value;
+  const quote = document.getElementById("condQuote").value;
+  const photoFile = document.getElementById("condPhotoInput").files[0];
+
+  if (!name.trim()) return alert("Inserisci il nome del condannato");
+
+  const btn = document.getElementById("saveCondemnedBtn");
+  btn.disabled = true;
+  btn.textContent = "Salvataggio in corso...";
+
+  const formData = new FormData();
+  formData.append("adminId", currentUser.id);
+  formData.append("name", name);
+  formData.append("nickname", nickname);
+  formData.append("role", role);
+  formData.append("team", team);
+  formData.append("description", description);
+  formData.append("weakness", weakness);
+  formData.append("quote", quote);
+  if (photoFile) formData.append("photo", photoFile);
+
+  try {
+    const res = await fetch("/api/admin/upload-condemned", {
+      method: "POST",
+      body: formData,
+    });
+    if (res.ok) {
+      alert("Profilo condannato salvato con successo!");
+      document.getElementById("condName").value = "";
+      document.getElementById("condNickname").value = "";
+      document.getElementById("condDesc").value = "";
+      document.getElementById("condWeakness").value = "";
+      document.getElementById("condQuote").value = "";
+      document.getElementById("condPhotoInput").value = "";
+      document.getElementById("condPhotoPreview").innerHTML = "";
+    } else {
+      alert("Errore salvataggio condannato.");
+    }
+  } catch (e) {
+    alert("Errore di connessione.");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Salva Profilo Condannato 💾";
+  }
+};
+
+window.adminDeleteCondemned = (condemnedId) => {
+  if (confirm("Vuoi eliminare questo profilo condannato?")) {
+    socket.emit("admin_delete_condemned", {
+      condemnedId,
       adminId: currentUser.id,
     });
   }
 };
 
-// Modal Avatar Actions
+// Modal Avatar
 window.openAvatarModal = () => {
   const previewBox = document.getElementById("avatarPreviewBox");
   if (currentUser.avatar) {
@@ -466,7 +596,7 @@ window.submitAvatar = async () => {
   }
 };
 
-// Itinerario Filters & Admin Actions
+// Itinerario
 window.setDayFilter = (day) => {
   selectedDayFilter = day;
   renderItinerary();

@@ -13,14 +13,12 @@ const io = new Server(server, { cors: { origin: "*" } });
 const DB_FILE = path.join(__dirname, "database.json");
 const ADMIN_MASTER_PIN = process.env.ADMIN_PIN || "9999";
 
-// Configurazione Cloudinary
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-// Multer in memoria RAM
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 40 * 1024 * 1024 },
@@ -48,6 +46,34 @@ let data = {
     Celibers: { name: "Celibers", color: "#00d2ff", points: 0 },
   },
   users: [],
+  condemned: [
+    {
+      id: 1,
+      name: "Lo Sposo",
+      nickname: "Il Sopravvissuto",
+      role: "Sposo",
+      team: "Celibers",
+      photo:
+        "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400&auto=format&fit=crop&q=80",
+      description:
+        "Ultimi giorni di libertà concessa. Segni particolari: beve birra tiepida se sotto pressione.",
+      weakness: "I brindisi con shot a tradimento",
+      quote: "“Faccio solo un salto e poi andiamo a dormire.”",
+    },
+    {
+      id: 2,
+      name: "La Sposa",
+      nickname: "La Regina del Caos",
+      role: "Sposa",
+      team: "Nubilers",
+      photo:
+        "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80",
+      description:
+        "Comandante in capo dell’operazione matrimonio. Ha già previsto ogni vostra mossa.",
+      weakness: "Canzoni pop anni 2000 a squarciagola",
+      quote: "“Basta che non facciate casini irreparabili!”",
+    },
+  ],
   itinerary: [
     {
       id: 1,
@@ -128,6 +154,7 @@ if (fs.existsSync(DB_FILE)) {
     }
     if (!data.itinerary) data.itinerary = [];
     if (!data.tasks) data.tasks = [];
+    if (!data.condemned) data.condemned = [];
   } catch (e) {
     console.log("Inizializzazione database predefinito.");
   }
@@ -194,7 +221,7 @@ app.post("/api/select-team", (req, res) => {
   res.json({ success: true, user });
 });
 
-// Upload Immagine Profilo
+// Upload Avatar Profilo
 app.post("/api/upload-avatar", upload.single("avatar"), async (req, res) => {
   const { userId } = req.body;
   const user = data.users.find((u) => u.id === userId);
@@ -222,15 +249,89 @@ app.post("/api/upload-avatar", upload.single("avatar"), async (req, res) => {
   }
 });
 
-// Completamento Sfida con Upload Prova
+// Upload Foto Condannato / Sposo (Admin)
+app.post(
+  "/api/admin/upload-condemned",
+  upload.single("photo"),
+  async (req, res) => {
+    const {
+      name,
+      nickname,
+      role,
+      team,
+      description,
+      weakness,
+      quote,
+      adminId,
+      id,
+    } = req.body;
+    const admin = data.users.find((u) => u.id === adminId);
+    if (!admin || admin.role !== "admin")
+      return res.status(403).json({ error: "Accesso negato." });
+
+    if (!data.condemned) data.condemned = [];
+
+    let photoUrl = req.body.existingPhoto || "";
+    if (req.file) {
+      try {
+        const result = await uploadToCloudinary(
+          req.file.buffer,
+          false,
+          "addio_celibato/condannati",
+        );
+        photoUrl = result.secure_url;
+      } catch (err) {
+        return res
+          .status(500)
+          .json({ error: "Errore durante il caricamento della foto." });
+      }
+    }
+
+    if (id) {
+      // Modifica
+      const target = data.condemned.find((c) => c.id === parseInt(id, 10));
+      if (target) {
+        target.name = (name || target.name).trim();
+        target.nickname = (nickname || "").trim();
+        target.role = (role || "Sposo/a").trim();
+        target.team = team || "Celibers";
+        target.photo = photoUrl || target.photo;
+        target.description = (description || "").trim();
+        target.weakness = (weakness || "").trim();
+        target.quote = (quote || "").trim();
+      }
+    } else {
+      // Creazione
+      const newCondemned = {
+        id: Date.now(),
+        name: (name || "Condannato").trim(),
+        nickname: (nickname || "").trim(),
+        role: (role || "Sposo").trim(),
+        team: team || "Celibers",
+        photo:
+          photoUrl ||
+          "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400&auto=format&fit=crop&q=80",
+        description: (description || "").trim(),
+        weakness: (weakness || "").trim(),
+        quote: (quote || "").trim(),
+      };
+      data.condemned.push(newCondemned);
+    }
+
+    saveDatabase();
+    io.emit("update_condemned", data.condemned);
+    res.json({ success: true, condemned: data.condemned });
+  },
+);
+
+// Completamento Sfida con Prova
 app.post("/api/complete-task", upload.single("media"), async (req, res) => {
   const { userId, taskId } = req.body;
   const user = data.users.find((u) => u.id === userId);
   const task = data.tasks.find((t) => t.id === parseInt(taskId, 10));
 
-  if (!user || !task || !user.team) {
+  if (!user || !task || !user.team)
     return res.status(400).json({ error: "Richiesta non valida." });
-  }
 
   let mediaObj = null;
 
@@ -242,10 +343,7 @@ app.post("/api/complete-task", upload.single("media"), async (req, res) => {
         isVideo,
         "addio_celibato/sfide",
       );
-      mediaObj = {
-        url: result.secure_url,
-        type: isVideo ? "video" : "image",
-      };
+      mediaObj = { url: result.secure_url, type: isVideo ? "video" : "image" };
     } catch (err) {
       console.error("Errore Cloudinary:", err.message);
     }
@@ -291,6 +389,7 @@ app.post("/api/complete-task", upload.single("media"), async (req, res) => {
 io.on("connection", (socket) => {
   socket.emit("init_data", {
     teams: data.teams,
+    condemned: data.condemned || [],
     itinerary: data.itinerary || [],
     tasks: data.tasks,
     users: data.users.map((u) => ({
@@ -304,7 +403,17 @@ io.on("connection", (socket) => {
     feed: data.feed,
   });
 
-  // Admin: Aggiungi Sfida
+  // Admin: Elimina Condannato
+  socket.on("admin_delete_condemned", ({ condemnedId, adminId }) => {
+    const admin = data.users.find((u) => u.id === adminId);
+    if (!admin || admin.role !== "admin") return;
+
+    data.condemned = (data.condemned || []).filter((c) => c.id !== condemnedId);
+    saveDatabase();
+    io.emit("update_condemned", data.condemned);
+  });
+
+  // Admin: Sfide
   socket.on("admin_add_task", ({ title, points, adminId }) => {
     const admin = data.users.find((u) => u.id === adminId);
     if (!admin || admin.role !== "admin") return;
@@ -318,7 +427,6 @@ io.on("connection", (socket) => {
     io.emit("update_tasks", data.tasks);
   });
 
-  // Admin: Modifica Sfida
   socket.on("admin_edit_task", ({ taskId, title, points, adminId }) => {
     const admin = data.users.find((u) => u.id === adminId);
     if (!admin || admin.role !== "admin") return;
@@ -332,7 +440,6 @@ io.on("connection", (socket) => {
     }
   });
 
-  // Admin: Elimina Sfida
   socket.on("admin_delete_task", ({ taskId, adminId }) => {
     const admin = data.users.find((u) => u.id === adminId);
     if (!admin || admin.role !== "admin") return;

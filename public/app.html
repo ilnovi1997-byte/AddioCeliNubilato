@@ -41,7 +41,11 @@
 
     <!-- Nav Bar -->
     <nav class="nav-bar">
-        <button class="nav-item active" onclick="switchTab('itinerary')">
+        <button class="nav-item active" onclick="switchTab('condemned')">
+            <span>⛓️</span>
+            <small>Condannati</small>
+        </button>
+        <button class="nav-item" onclick="switchTab('itinerary')">
             <span>🗺️</span>
             <small>Itinerario</small>
         </button>
@@ -68,8 +72,17 @@
     </nav>
 
     <main class="app-container">
-        <!-- Tab 1: Itinerario -->
-        <section id="tab-itinerary" class="tab-panel active">
+        <!-- Tab 1: I CONDANNATI -->
+        <section id="tab-condemned" class="tab-panel active">
+            <div class="section-title">
+                <h2>I Condannati a Nozze 👰🤵</h2>
+                <p>I veri protagonisti (e bersagli) di questo weekend</p>
+            </div>
+            <div id="condemnedList" class="condemned-grid"></div>
+        </section>
+
+        <!-- Tab 2: Itinerario -->
+        <section id="tab-itinerary" class="tab-panel">
             <div class="section-title">
                 <h2>Programma di Viaggio ✈️</h2>
                 <p>Tutti gli orari, le tappe e le attività previste</p>
@@ -78,7 +91,7 @@
             <div id="itineraryList" class="itinerary-timeline"></div>
         </section>
 
-        <!-- Tab 2: Sfide -->
+        <!-- Tab 3: Sfide -->
         <section id="tab-tasks" class="tab-panel">
             <div class="section-title">
                 <h2>Sfide Ripetibili</h2>
@@ -87,7 +100,7 @@
             <div id="taskList" class="task-list"></div>
         </section>
 
-        <!-- Tab 3: Classifica -->
+        <!-- Tab 4: Classifica -->
         <section id="tab-ranking" class="tab-panel">
             <div class="section-title">
                 <h2>Top Contributors</h2>
@@ -96,7 +109,7 @@
             <div id="rankingList" class="ranking-list"></div>
         </section>
 
-        <!-- Tab 4: Feed -->
+        <!-- Tab 5: Feed -->
         <section id="tab-feed" class="tab-panel">
             <div class="section-title">
                 <h2>Live Event Feed</h2>
@@ -108,10 +121,35 @@
             <div id="feedList" class="feed-list"></div>
         </section>
 
-        <!-- Tab 5: Admin -->
+        <!-- Tab 6: Admin -->
         <section id="tab-admin" class="tab-panel">
             <div class="section-title">
                 <h2>Pannello Admin ⚙️</h2>
+            </div>
+
+            <!-- Aggiungi / Modifica Condannato -->
+            <div class="admin-card">
+                <h3>👰🤵 Profilo Condannato (Sposo / Sposa)</h3>
+                <input type="text" id="condName" placeholder="Nome (es. Alessandro)">
+                <input type="text" id="condNickname" placeholder="Soprannome (es. Il Sopravvissuto)">
+                <select id="condRole">
+                    <option value="Sposo">Sposo 🤵</option>
+                    <option value="Sposa">Sposa 👰</option>
+                    <option value="Testimone">Testimone 🥂</option>
+                </select>
+                <select id="condTeam">
+                    <option value="Celibers">Team Celibers (Sposo)</option>
+                    <option value="Nubilers">Team Nubilers (Sposa)</option>
+                </select>
+                <textarea id="condDesc" placeholder="Descrizione simpatica / Scheda del condannato" rows="2" style="width:100%; padding:10px; border-radius:8px; background:#0b0e14; border:1px solid var(--card-border); color:#fff; margin-bottom:10px;"></textarea>
+                <input type="text" id="condWeakness" placeholder="Punto debole (es. I gin tonic)">
+                <input type="text" id="condQuote" placeholder="Frase celebre (es. 'È l'ultimo!')">
+                <label class="btn-secondary" style="display:block; text-align:center; margin-bottom:10px; cursor:pointer;">
+                    <span>📷 Carica Foto Sposo/a</span>
+                    <input type="file" id="condPhotoInput" accept="image/*" style="display:none;">
+                </label>
+                <div id="condPhotoPreview" style="margin-bottom:10px; text-align:center;"></div>
+                <button class="btn-primary" id="saveCondemnedBtn" onclick="adminSubmitCondemned()">Salva Profilo Condannato 💾</button>
             </div>
 
             <!-- Crea Nuova Sfida -->
@@ -122,7 +160,7 @@
                 <button class="btn-primary" onclick="adminCreateTask()">Aggiungi Sfida</button>
             </div>
 
-            <!-- Elenco & Gestione Rapida Sfide Esistenti -->
+            <!-- Gestisci Sfide Esistenti -->
             <div class="admin-card">
                 <h3>✏️ Gestisci Sfide Esistenti</h3>
                 <div id="adminTaskManagementList" class="admin-task-manage-list"></div>
@@ -135,7 +173,7 @@
                 <input type="text" id="itinTime" placeholder="Orario (es. 20:30)">
                 <input type="text" id="itinTitle" placeholder="Titolo Tappa">
                 <input type="text" id="itinLocation" placeholder="Luogo (es. Bar del Porto)">
-                <input type="text" id="itinDesc" placeholder="Dettagli / Consigli su cosa portare">
+                <input type="text" id="itinDesc" placeholder="Dettagli / Consigli">
                 <button class="btn-primary" onclick="adminCreateItinerary()">Aggiungi all'Itinerario</button>
             </div>
 
@@ -152,12 +190,11 @@
         </section>
     </main>
 
-    <!-- Modal Completamento Sfida & Upload Prova -->
+    <!-- Modal Sfida Prova -->
     <div id="taskModal" class="modal-overlay" style="display: none;">
         <div class="modal-card">
             <h3 id="modalTaskTitle">Completa Sfida</h3>
             <p id="modalTaskPoints" class="modal-points">+50 pt</p>
-            
             <div class="upload-area">
                 <label for="mediaInput" class="upload-label">
                     <span>📷 Carica Foto o Video</span>
@@ -166,7 +203,6 @@
                 <input type="file" id="mediaInput" accept="image/*,video/*">
                 <div id="mediaPreviewContainer" class="media-preview"></div>
             </div>
-
             <div class="modal-actions">
                 <button class="btn-secondary" onclick="closeTaskModal()">Annulla</button>
                 <button class="btn-primary" id="confirmTaskBtn" onclick="submitTaskCompletion()">Conferma e Invia 🚀</button>
@@ -174,22 +210,19 @@
         </div>
     </div>
 
-    <!-- NUOVO: Modal Modifica Sfida (Admin) -->
+    <!-- Modal Modifica Sfida -->
     <div id="editTaskModal" class="modal-overlay" style="display: none;">
         <div class="modal-card">
             <h3>✏️ Modifica Sfida</h3>
-            <p class="modal-points">Aggiorna testo o punteggio assegnato</p>
-            
+            <p class="modal-points">Aggiorna testo o punteggio</p>
             <div class="form-group" style="margin-top: 10px;">
                 <label for="editTaskTitleInput">Titolo Sfida</label>
                 <input type="text" id="editTaskTitleInput" style="width: 100%; padding: 10px; border-radius: 8px; background: #0b0e14; border: 1px solid var(--card-border); color: #fff;">
             </div>
-
             <div class="form-group" style="margin-top: 10px; margin-bottom: 16px;">
                 <label for="editTaskPointsInput">Punti Assegnati</label>
                 <input type="number" id="editTaskPointsInput" style="width: 100%; padding: 10px; border-radius: 8px; background: #0b0e14; border: 1px solid var(--card-border); color: #fff;">
             </div>
-
             <div class="modal-actions">
                 <button class="btn-secondary" onclick="closeEditTaskModal()">Annulla</button>
                 <button class="btn-primary" onclick="submitEditTask()">Salva Modifiche 💾</button>
@@ -197,12 +230,11 @@
         </div>
     </div>
 
-    <!-- Modal Modifica Foto Profilo -->
+    <!-- Modal Avatar -->
     <div id="avatarModal" class="modal-overlay" style="display: none;">
         <div class="modal-card">
             <h3>La tua Immagine Profilo</h3>
             <p class="modal-points">Personalizza la tua icona visibile a tutti!</p>
-            
             <div class="upload-area">
                 <div id="avatarPreviewBox" class="avatar-preview-box">
                     <span style="font-size: 3.5rem;">😎</span>
@@ -212,7 +244,6 @@
                 </label>
                 <input type="file" id="avatarFileInput" accept="image/*">
             </div>
-
             <div class="modal-actions">
                 <button class="btn-secondary" onclick="closeAvatarModal()">Chiudi</button>
                 <button class="btn-primary" id="saveAvatarBtn" onclick="submitAvatar()">Salva Profilo 💾</button>
