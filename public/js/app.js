@@ -10,12 +10,19 @@ let currentTasks = [];
 let currentUsers = [];
 let currentFeed = [];
 
+// Header e Badge
 document.getElementById("userName").textContent = currentUser.name;
 document.getElementById("myPoints").textContent = currentUser.points || 0;
-document.getElementById("userRole").textContent =
-  currentUser.role === "groom" ? "👑 Lo Sposo" : "Membro";
-if (currentUser.role === "groom") {
+
+if (currentUser.role === "admin") {
+  document.getElementById("userRole").textContent = "⚡ Organizzatore";
+  document.getElementById("avatarIcon").textContent = "🕶️";
+  document.getElementById("adminTabBtn").style.display = "flex";
+} else if (currentUser.role === "groom") {
+  document.getElementById("userRole").textContent = "👑 Lo Sposo";
   document.getElementById("avatarIcon").textContent = "🤴";
+} else {
+  document.getElementById("userRole").textContent = "Membro";
 }
 
 socket.on("init_data", (data) => {
@@ -26,6 +33,7 @@ socket.on("init_data", (data) => {
   renderTasks();
   renderRanking();
   renderFeed();
+  populateAdminUserSelect();
 });
 
 socket.on("update_tasks", (tasks) => {
@@ -36,6 +44,7 @@ socket.on("update_tasks", (tasks) => {
 socket.on("update_scoreboard", (users) => {
   currentUsers = users;
   renderRanking();
+  populateAdminUserSelect();
   const me = users.find((u) => u.id === currentUser.id);
   if (me) {
     currentUser.points = me.points;
@@ -82,7 +91,7 @@ function renderRanking() {
       return `
             <div class="ranking-card ${idx === 0 ? "rank-1" : ""}" style="${isMe ? "border-color: #ff007a;" : ""}">
                 <span class="rank-position">${medal}</span>
-                <span class="rank-name">${u.name} ${u.role === "groom" ? "👑" : ""} ${isMe ? "(Tu)" : ""}</span>
+                <span class="rank-name">${u.name} ${u.role === "groom" ? "👑" : ""} ${u.role === "admin" ? "⚡" : ""} ${isMe ? "(Tu)" : ""}</span>
                 <span class="rank-points">${u.points} pt</span>
             </div>
         `;
@@ -107,6 +116,14 @@ function renderFeed() {
     .join("");
 }
 
+function populateAdminUserSelect() {
+  const select = document.getElementById("targetUserSelect");
+  if (!select) return;
+  select.innerHTML = currentUsers
+    .map((u) => `<option value="${u.id}">${u.name} (${u.points} pt)</option>`)
+    .join("");
+}
+
 window.completeTask = (taskId) => {
   socket.emit("complete_task", {
     userId: currentUser.id,
@@ -114,6 +131,38 @@ window.completeTask = (taskId) => {
   });
 };
 
+// Funzioni Admin
+window.adminCreateTask = () => {
+  const titleInput = document.getElementById("newTaskTitle");
+  const pointsInput = document.getElementById("newTaskPoints");
+  if (!titleInput.value.trim()) return;
+
+  socket.emit("admin_add_task", {
+    title: titleInput.value,
+    points: pointsInput.value,
+    adminId: currentUser.id,
+  });
+
+  titleInput.value = "";
+  alert("Sfida aggiunta con successo!");
+};
+
+window.adminAssignPoints = () => {
+  const targetUserId = document.getElementById("targetUserSelect").value;
+  const amount = document.getElementById("bonusPoints").value;
+  if (!amount) return;
+
+  socket.emit("admin_give_points", {
+    targetUserId,
+    amount,
+    adminId: currentUser.id,
+  });
+
+  document.getElementById("bonusPoints").value = "";
+  alert("Punti aggiornati!");
+};
+
+// Invio post feed
 document.getElementById("feedSendBtn").addEventListener("click", sendFeedPost);
 document.getElementById("feedInput").addEventListener("keypress", (e) => {
   if (e.key === "Enter") sendFeedPost();

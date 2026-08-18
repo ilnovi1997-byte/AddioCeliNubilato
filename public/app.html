@@ -35,6 +35,11 @@
             <span>💬</span>
             <small>Live Feed</small>
         </button>
+        <!-- Pulsante visibile solo agli Admin -->
+        <button class="nav-item" id="adminTabBtn" style="display: none;" onclick="switchTab('admin')">
+            <span>⚙️</span>
+            <small>Admin</small>
+        </button>
         <button class="nav-item" onclick="logout()">
             <span>🚪</span>
             <small>Esci</small>
@@ -42,6 +47,7 @@
     </nav>
 
     <main class="app-container">
+        <!-- Tab Sfide -->
         <section id="tab-tasks" class="tab-panel active">
             <div class="section-title">
                 <h2>Sfide & Penitenze</h2>
@@ -50,6 +56,7 @@
             <div id="taskList" class="task-list"></div>
         </section>
 
+        <!-- Tab Classifica -->
         <section id="tab-ranking" class="tab-panel">
             <div class="section-title">
                 <h2>Classifica Live</h2>
@@ -58,6 +65,7 @@
             <div id="rankingList" class="ranking-list"></div>
         </section>
 
+        <!-- Tab Live Feed -->
         <section id="tab-feed" class="tab-panel">
             <div class="section-title">
                 <h2>Bacheca Live</h2>
@@ -68,6 +76,30 @@
                 <button id="feedSendBtn" class="btn-send">Invia</button>
             </div>
             <div id="feedList" class="feed-list"></div>
+        </section>
+
+        <!-- Tab Pannello Admin (Riservato) -->
+        <section id="tab-admin" class="tab-panel">
+            <div class="section-title">
+                <h2>Pannello Organizzatori ⚙️</h2>
+                <p>Aggiungi sfide al volo o modifica i punti dei partecipanti.</p>
+            </div>
+
+            <!-- Box Creazione Sfida -->
+            <div class="admin-card">
+                <h3>➕ Aggiungi Nuova Sfida</h3>
+                <input type="text" id="newTaskTitle" placeholder="Descrizione della sfida (es. Balla sul tavolo)">
+                <input type="number" id="newTaskPoints" placeholder="Punti (es. 100)" value="50">
+                <button class="btn-primary" onclick="adminCreateTask()">Pubblica Sfida</button>
+            </div>
+
+            <!-- Box Gestione Punti -->
+            <div class="admin-card">
+                <h3>⭐ Assegna / Togli Punti Manualmente</h3>
+                <select id="targetUserSelect"></select>
+                <input type="number" id="bonusPoints" placeholder="Punti (+50 o -20)">
+                <button class="btn-primary" onclick="adminAssignPoints()">Aggiorna Punti</button>
+            </div>
         </section>
     </main>
 

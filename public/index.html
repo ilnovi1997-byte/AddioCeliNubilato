@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Addio al Celibato 🎉 | Accesso</title>
+    <title>Addio al CeliNubilato 🎉 | Accesso</title>
     <link rel="stylesheet" href="/css/style.css">
 </head>
 <body class="auth-body">
     <div class="auth-card">
         <div class="header-logo">
             <span class="party-emoji">🍻</span>
-            <h1>Bachelor Party</h1>
+            <h1>Addio CeliNubilato</h1>
             <p class="subtitle">Inserisci il tuo nome e un PIN a 4 cifre per accedere o registrarti.</p>
         </div>
 
@@ -23,6 +23,16 @@
             <div class="form-group">
                 <label for="pin">PIN di Sicurezza (4 cifre)</label>
                 <input type="password" id="pin" pattern="[0-9]{4}" inputmode="numeric" maxlength="4" placeholder="1234" required>
+            </div>
+            <!-- Toggle Admin Opzionale -->
+            <div class="admin-toggle-box">
+                <label class="checkbox-container">
+                    <input type="checkbox" id="adminCheckbox"> Sei un Organizzatore?
+                </label>
+                <div id="adminField" style="display: none; margin-top: 10px;">
+                    <label for="adminCode">Codice Segreto Admin</label>
+                    <input type="password" id="adminCode" placeholder="Inserisci Master PIN">
+                </div>
             </div>
 
             <div id="errorMsg" class="error-msg"></div>
