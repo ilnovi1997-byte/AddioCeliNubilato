@@ -1,7 +1,8 @@
+let loggedUser = null;
+
 const adminCheckbox = document.getElementById("adminCheckbox");
 const adminField = document.getElementById("adminField");
 
-// Mostra o nasconde il campo del codice admin quando si spunta la casella
 if (adminCheckbox && adminField) {
   adminCheckbox.addEventListener("change", () => {
     adminField.style.display = adminCheckbox.checked ? "block" : "none";
@@ -10,50 +11,68 @@ if (adminCheckbox && adminField) {
 
 document.getElementById("loginForm").addEventListener("submit", async (e) => {
   e.preventDefault();
-
-  const nameInput = document.getElementById("name");
-  const pinInput = document.getElementById("pin");
-  const adminCodeInput = document.getElementById("adminCode");
+  const name = document.getElementById("name").value.trim();
+  const pin = document.getElementById("pin").value.trim();
+  const adminCode = adminCheckbox.checked
+    ? document.getElementById("adminCode").value.trim()
+    : null;
   const errorMsg = document.getElementById("errorMsg");
   const submitBtn = document.getElementById("submitBtn");
 
   errorMsg.textContent = "";
   submitBtn.disabled = true;
-  submitBtn.textContent = "Accesso in corso...";
-
-  const payload = {
-    name: nameInput.value.trim(),
-    pin: pinInput.value.trim(),
-    adminCode:
-      adminCheckbox && adminCheckbox.checked && adminCodeInput
-        ? adminCodeInput.value.trim()
-        : null,
-  };
+  submitBtn.textContent = "Verifica in corso...";
 
   try {
     const res = await fetch("/api/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ name, pin, adminCode }),
     });
-
     const data = await res.json();
 
     if (!res.ok) {
-      errorMsg.textContent = data.error || "Errore durante l'accesso.";
+      errorMsg.textContent = data.error || "Errore di accesso.";
       submitBtn.disabled = false;
-      submitBtn.textContent = "Entra nel Gruppo 🚀";
+      submitBtn.textContent = "Accedi 🚀";
       return;
     }
 
-    // Salva l'oggetto utente nel localStorage del browser
-    localStorage.setItem("party_user", JSON.stringify(data.user));
+    loggedUser = data.user;
+    localStorage.setItem("party_user", JSON.stringify(loggedUser));
 
-    // Reindirizza alla dashboard principale
-    window.location.href = "/app.html";
+    // Se l'utente non ha ancora scelto la squadra, mostra il selettore
+    if (!loggedUser.team) {
+      document.getElementById("loginCard").style.display = "none";
+      document.getElementById("teamCard").style.display = "block";
+    } else {
+      window.location.href = "/app.html";
+    }
   } catch (err) {
-    errorMsg.textContent = "Errore di connessione con il server.";
+    errorMsg.textContent = "Errore di rete o server offline.";
     submitBtn.disabled = false;
-    submitBtn.textContent = "Entra nel Gruppo 🚀";
+    submitBtn.textContent = "Accedi 🚀";
   }
 });
+
+async function chooseTeam(teamName) {
+  if (!loggedUser) return;
+
+  try {
+    const res = await fetch("/api/select-team", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: loggedUser.id, team: teamName }),
+    });
+    const data = await res.json();
+
+    if (res.ok) {
+      localStorage.setItem("party_user", JSON.stringify(data.user));
+      window.location.href = "/app.html";
+    } else {
+      alert(data.error || "Errore selezione squadra.");
+    }
+  } catch (e) {
+    alert("Errore di connessione.");
+  }
+}

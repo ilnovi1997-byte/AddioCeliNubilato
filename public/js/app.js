@@ -1,7 +1,7 @@
 const socket = io();
 const localUser = JSON.parse(localStorage.getItem("party_user") || "null");
 
-if (!localUser) {
+if (!localUser || !localUser.team) {
   window.location.href = "/index.html";
 }
 
@@ -9,31 +9,31 @@ let currentUser = localUser;
 let currentTasks = [];
 let currentUsers = [];
 let currentFeed = [];
+let currentTeams = { Nubilers: { points: 0 }, Celibers: { points: 0 } };
 
-// Header e Badge
+// Setup Header
 document.getElementById("userName").textContent = currentUser.name;
 document.getElementById("myPoints").textContent = currentUser.points || 0;
 
+const badge = document.getElementById("userTeamBadge");
+badge.textContent = `${currentUser.team} ${currentUser.role === "groom" ? "👑" : ""}`;
+badge.className = `user-badge badge-${currentUser.team.toLowerCase()}`;
+
 if (currentUser.role === "admin") {
-  document.getElementById("userRole").textContent = "⚡ Organizzatore";
-  document.getElementById("avatarIcon").textContent = "🕶️";
   document.getElementById("adminTabBtn").style.display = "flex";
-} else if (currentUser.role === "groom") {
-  document.getElementById("userRole").textContent = "👑 Lo Sposo";
-  document.getElementById("avatarIcon").textContent = "🤴";
-} else {
-  document.getElementById("userRole").textContent = "Membro";
 }
 
+// Socket Events
 socket.on("init_data", (data) => {
   currentTasks = data.tasks;
   currentUsers = data.users;
   currentFeed = data.feed;
+  currentTeams = data.teams;
 
+  renderTeams();
   renderTasks();
   renderRanking();
   renderFeed();
-  populateAdminUserSelect();
 });
 
 socket.on("update_tasks", (tasks) => {
@@ -41,10 +41,13 @@ socket.on("update_tasks", (tasks) => {
   renderTasks();
 });
 
-socket.on("update_scoreboard", (users) => {
+socket.on("update_scoreboard", ({ teams, users }) => {
+  currentTeams = teams;
   currentUsers = users;
+
+  renderTeams();
   renderRanking();
-  populateAdminUserSelect();
+
   const me = users.find((u) => u.id === currentUser.id);
   if (me) {
     currentUser.points = me.points;
@@ -58,23 +61,29 @@ socket.on("broadcast_post", (post) => {
   renderFeed();
 });
 
+function renderTeams() {
+  document.getElementById("nubilersPoints").textContent =
+    `${currentTeams.Nubilers.points} pt`;
+  document.getElementById("celibersPoints").textContent =
+    `${currentTeams.Celibers.points} pt`;
+}
+
 function renderTasks() {
   const container = document.getElementById("taskList");
   container.innerHTML = currentTasks
-    .map((t) => {
-      const isDone = t.completedBy.includes(currentUser.id);
-      return `
-            <div class="task-card ${isDone ? "completed" : ""}">
-                <div class="task-content">
-                    <h4>${t.title}</h4>
-                    <span class="task-points">+${t.points} PUNTI</span>
-                </div>
-                <button class="btn-task" ${isDone ? "disabled" : ""} onclick="completeTask(${t.id})">
-                    ${isDone ? "Fatto ✓" : "Completa"}
-                </button>
+    .map(
+      (t) => `
+        <div class="task-card">
+            <div class="task-content">
+                <h4>${t.title}</h4>
+                <span class="task-points">+${t.points} PT PER ${currentUser.team.toUpperCase()}</span>
             </div>
-        `;
-    })
+            <button class="btn-task" onclick="completeTask(${t.id})">
+                Completa +
+            </button>
+        </div>
+    `,
+    )
     .join("");
 }
 
@@ -84,14 +93,13 @@ function renderRanking() {
 
   container.innerHTML = sorted
     .map((u, idx) => {
-      const medals = ["🥇", "🥈", "🥉"];
-      const medal = idx < 3 ? medals[idx] : `#${idx + 1}`;
       const isMe = u.id === currentUser.id;
+      const teamClass = u.team ? u.team.toLowerCase() : "neutral";
 
       return `
-            <div class="ranking-card ${idx === 0 ? "rank-1" : ""}" style="${isMe ? "border-color: #ff007a;" : ""}">
-                <span class="rank-position">${medal}</span>
-                <span class="rank-name">${u.name} ${u.role === "groom" ? "👑" : ""} ${u.role === "admin" ? "⚡" : ""} ${isMe ? "(Tu)" : ""}</span>
+            <div class="ranking-card team-border-${teamClass}" style="${isMe ? "outline: 2px solid #fff;" : ""}">
+                <span class="rank-position">#${idx + 1}</span>
+                <span class="rank-name">${u.name} <small>(${u.team || "N/D"})</small></span>
                 <span class="rank-points">${u.points} pt</span>
             </div>
         `;
@@ -102,25 +110,20 @@ function renderRanking() {
 function renderFeed() {
   const container = document.getElementById("feedList");
   container.innerHTML = currentFeed
-    .map(
-      (p) => `
-        <div class="feed-card">
-            <div class="feed-card-header">
-                <span class="feed-user">${p.user}</span>
-                <span>${p.time}</span>
+    .map((p) => {
+      const teamTag = p.team
+        ? `<span class="tag-${p.team.toLowerCase()}">[${p.team}]</span>`
+        : "";
+      return `
+            <div class="feed-card ${p.team ? "feed-" + p.team.toLowerCase() : ""}">
+                <div class="feed-card-header">
+                    <span class="feed-user">${teamTag} ${p.user}</span>
+                    <span>${p.time}</span>
+                </div>
+                <div class="feed-text">${p.text}</div>
             </div>
-            <div class="feed-text">${p.text}</div>
-        </div>
-    `,
-    )
-    .join("");
-}
-
-function populateAdminUserSelect() {
-  const select = document.getElementById("targetUserSelect");
-  if (!select) return;
-  select.innerHTML = currentUsers
-    .map((u) => `<option value="${u.id}">${u.name} (${u.points} pt)</option>`)
+        `;
+    })
     .join("");
 }
 
@@ -131,54 +134,40 @@ window.completeTask = (taskId) => {
   });
 };
 
-// Funzioni Admin
+// Admin Actions
 window.adminCreateTask = () => {
-  const titleInput = document.getElementById("newTaskTitle");
-  const pointsInput = document.getElementById("newTaskPoints");
-  if (!titleInput.value.trim()) return;
+  const title = document.getElementById("newTaskTitle").value;
+  const points = document.getElementById("newTaskPoints").value;
+  if (!title.trim()) return;
 
-  socket.emit("admin_add_task", {
-    title: titleInput.value,
-    points: pointsInput.value,
-    adminId: currentUser.id,
-  });
-
-  titleInput.value = "";
-  alert("Sfida aggiunta con successo!");
+  socket.emit("admin_add_task", { title, points, adminId: currentUser.id });
+  document.getElementById("newTaskTitle").value = "";
 };
 
-window.adminAssignPoints = () => {
-  const targetUserId = document.getElementById("targetUserSelect").value;
-  const amount = document.getElementById("bonusPoints").value;
+window.adminGiveTeamPoints = () => {
+  const team = document.getElementById("adminTeamSelect").value;
+  const amount = document.getElementById("adminTeamPoints").value;
   if (!amount) return;
 
-  socket.emit("admin_give_points", {
-    targetUserId,
+  socket.emit("admin_give_team_points", {
+    team,
     amount,
     adminId: currentUser.id,
   });
-
-  document.getElementById("bonusPoints").value = "";
-  alert("Punti aggiornati!");
+  document.getElementById("adminTeamPoints").value = "";
 };
 
-// Invio post feed
-document.getElementById("feedSendBtn").addEventListener("click", sendFeedPost);
-document.getElementById("feedInput").addEventListener("keypress", (e) => {
-  if (e.key === "Enter") sendFeedPost();
-});
-
-function sendFeedPost() {
+// Feed
+document.getElementById("feedSendBtn").addEventListener("click", () => {
   const input = document.getElementById("feedInput");
-  const text = input.value.trim();
-  if (!text) return;
-
+  if (!input.value.trim()) return;
   socket.emit("new_post", {
     user: currentUser.name,
-    text: text,
+    text: input.value,
+    team: currentUser.team,
   });
   input.value = "";
-}
+});
 
 window.switchTab = (tabName) => {
   document

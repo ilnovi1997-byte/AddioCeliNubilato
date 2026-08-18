@@ -3,44 +3,65 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Addio al CeliNubilato 🎉 | Accesso</title>
+    <title>Bachelor Clash: Nubilers vs Celibers</title>
     <link rel="stylesheet" href="/css/style.css">
 </head>
 <body class="auth-body">
-    <div class="auth-card">
+    <!-- Step 1: Login -->
+    <div class="auth-card" id="loginCard">
         <div class="header-logo">
-            <span class="party-emoji">🍻</span>
-            <h1>Addio CeliNubilato</h1>
-            <p class="subtitle">Inserisci il tuo nome e un PIN a 4 cifre per accedere o registrarti.</p>
+            <span class="party-emoji">⚔️</span>
+            <h1>Bachelor Clash</h1>
+            <p class="subtitle">Nubilers vs Celibers</p>
         </div>
 
         <form id="loginForm" class="auth-form">
             <div class="form-group">
                 <label for="name">Nome o Soprannome</label>
-                <input type="text" id="name" placeholder="Es. Marco, Lo Sposo..." autocomplete="off" required>
+                <input type="text" id="name" placeholder="Es. Andrea, Lo Sposo..." autocomplete="off" required>
             </div>
             
             <div class="form-group">
-                <label for="pin">PIN di Sicurezza (4 cifre)</label>
+                <label for="pin">PIN Personale (4 cifre)</label>
                 <input type="password" id="pin" pattern="[0-9]{4}" inputmode="numeric" maxlength="4" placeholder="1234" required>
             </div>
-            <!-- Toggle Admin Opzionale -->
+
             <div class="admin-toggle-box">
                 <label class="checkbox-container">
                     <input type="checkbox" id="adminCheckbox"> Sei un Organizzatore?
                 </label>
                 <div id="adminField" style="display: none; margin-top: 10px;">
-                    <label for="adminCode">Codice Segreto Admin</label>
-                    <input type="password" id="adminCode" placeholder="Inserisci Master PIN">
+                    <label for="adminCode">Master PIN Admin</label>
+                    <input type="password" id="adminCode" placeholder="Codice Admin">
                 </div>
             </div>
 
             <div id="errorMsg" class="error-msg"></div>
-
-            <button type="submit" class="btn-primary" id="submitBtn">Entra nel Gruppo 🚀</button>
+            <button type="submit" class="btn-primary" id="submitBtn">Accedi 🚀</button>
         </form>
-        
-        <p class="footer-hint">Se è il tuo primo accesso, il PIN inserito sarà memorizzato per le sessioni successive.</p>
+    </div>
+
+    <!-- Step 2: Selezione Squadra -->
+    <div class="auth-card" id="teamCard" style="display: none;">
+        <div class="header-logo">
+            <span class="party-emoji">🛡️</span>
+            <h2>Scegli la tua Fazione</h2>
+            <p class="subtitle">I punti che guadagnerai andranno alla tua squadra!</p>
+        </div>
+
+        <div class="team-choice-grid">
+            <button class="team-btn nubilers-btn" onclick="chooseTeam('Nubilers')">
+                <span class="team-badge-icon">💖</span>
+                <strong>NUBILERS</strong>
+                <small>Team Sposa / Supporters</small>
+            </button>
+
+            <button class="team-btn celibers-btn" onclick="chooseTeam('Celibers')">
+                <span class="team-badge-icon">💙</span>
+                <strong>CELIBERS</strong>
+                <small>Team Sposo / Celibato</small>
+            </button>
+        </div>
     </div>
 
     <script src="/js/auth.js"></script>

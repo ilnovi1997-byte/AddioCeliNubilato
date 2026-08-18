@@ -6,56 +6,43 @@ const path = require("path");
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, {
-  cors: { origin: "*" },
-});
+const io = new Server(server, { cors: { origin: "*" } });
 
 const DB_FILE = path.join(__dirname, "database.json");
-
-// PIN Master per diventare Admin (modificabile da variabile d'ambiente o qui)
 const ADMIN_MASTER_PIN = process.env.ADMIN_PIN || "9999";
 
-// Stato iniziale
 let data = {
-  users: [],
+  teams: {
+    Nubilers: { name: "Nubilers", color: "#ff007a", points: 0 },
+    Celibers: { name: "Celibers", color: "#00d2ff", points: 0 },
+  },
+  users: [], // { id, name, pin, team, points, role }
   tasks: [
-    {
-      id: 1,
-      title: "Bevi uno shot senza usare le mani",
-      points: 50,
-      completedBy: [],
-    },
-    {
-      id: 2,
-      title: "Fai un brindisi imbarazzante allo sposo",
-      points: 100,
-      completedBy: [],
-    },
+    { id: 1, title: "Bevi uno shot senza usare le mani", points: 50 },
+    { id: 2, title: "Fai un brindisi imbarazzante allo sposo", points: 100 },
     {
       id: 3,
       title: "Scatta un selfie con uno sconosciuto con occhiali da sole",
       points: 70,
-      completedBy: [],
     },
     {
       id: 4,
       title: "Fai cantare una canzone a squarciagola allo sposo",
       points: 80,
-      completedBy: [],
     },
     {
       id: 5,
-      title: "Offri un bicchiere spiegando le regole del matrimonio",
+      title: "Offri un drink a uno sconosciuto spiegando il matrimonio",
       points: 120,
-      completedBy: [],
     },
   ],
   feed: [
     {
       id: 1,
       user: "Sistema",
-      text: "Benvenuti all'Addio al Celibato! 🎉",
+      text: "Benvenuti alla sfida Nubilers vs Celibers! 🔥",
       time: "18:00",
+      team: null,
     },
   ],
 };
@@ -72,6 +59,12 @@ if (fs.existsSync(DB_FILE)) {
   try {
     const raw = fs.readFileSync(DB_FILE, "utf-8");
     data = JSON.parse(raw);
+    if (!data.teams) {
+      data.teams = {
+        Nubilers: { name: "Nubilers", color: "#ff007a", points: 0 },
+        Celibers: { name: "Celibers", color: "#00d2ff", points: 0 },
+      };
+    }
   } catch (e) {
     console.log("Inizializzazione database predefinito.");
   }
@@ -80,12 +73,11 @@ if (fs.existsSync(DB_FILE)) {
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
-// API: Login con supporto Admin
+// API: Login / Registrazione
 app.post("/api/login", (req, res) => {
   const { name, pin, adminCode } = req.body;
-  if (!name || !pin) {
+  if (!name || !pin)
     return res.status(400).json({ error: "Inserisci nome e PIN." });
-  }
 
   const cleanName = name.trim();
   const cleanPin = pin.trim();
@@ -100,6 +92,7 @@ app.post("/api/login", (req, res) => {
       id: "u_" + Date.now() + "_" + Math.random().toString(36).substr(2, 4),
       name: cleanName,
       pin: cleanPin,
+      team: null, // Scelta al passo successivo
       points: 0,
       role: isAdmin
         ? "admin"
@@ -110,76 +103,88 @@ app.post("/api/login", (req, res) => {
     data.users.push(user);
     saveDatabase();
   } else {
-    if (user.pin !== cleanPin) {
-      return res.status(401).json({ error: "PIN errato per questo nome." });
-    }
-    // Promozione a admin se inserisce il codice corretto
+    if (user.pin !== cleanPin)
+      return res.status(401).json({ error: "PIN errato." });
     if (isAdmin && user.role !== "admin") {
       user.role = "admin";
       saveDatabase();
     }
   }
 
-  res.json({
-    success: true,
-    user: {
-      id: user.id,
-      name: user.name,
-      points: user.points,
-      role: user.role,
-    },
-  });
+  res.json({ success: true, user });
+});
+
+// API: Selezione Squadra
+app.post("/api/select-team", (req, res) => {
+  const { userId, team } = req.body;
+  if (!["Nubilers", "Celibers"].includes(team)) {
+    return res.status(400).json({ error: "Squadra non valida." });
+  }
+
+  const user = data.users.find((u) => u.id === userId);
+  if (!user) return res.status(404).json({ error: "Utente non trovato." });
+
+  user.team = team;
+  saveDatabase();
+
+  io.emit("update_scoreboard", { teams: data.teams, users: data.users });
+  res.json({ success: true, user });
 });
 
 // Socket.io Real-Time
 io.on("connection", (socket) => {
   socket.emit("init_data", {
+    teams: data.teams,
     tasks: data.tasks,
     users: data.users.map((u) => ({
       id: u.id,
       name: u.name,
+      team: u.team,
       points: u.points,
       role: u.role,
     })),
     feed: data.feed,
   });
 
-  // Completamento sfida
+  // Sfida completata (RIPETIBILE)
   socket.on("complete_task", ({ userId, taskId }) => {
     const user = data.users.find((u) => u.id === userId);
     const task = data.tasks.find((t) => t.id === taskId);
 
-    if (user && task && !task.completedBy.includes(userId)) {
-      task.completedBy.push(userId);
+    if (user && task && user.team) {
       user.points += task.points;
+      data.teams[user.team].points += task.points;
 
       const autoPost = {
         id: Date.now(),
-        user: "🏆 Sfida Completata",
-        text: `${user.name} ha completato "${task.title}" (+${task.points} pt)!`,
+        user: `${user.name} (${user.team})`,
+        text: `ha completato "${task.title}" (+${task.points} pt per ${user.team})! 🎯`,
         time: new Date().toLocaleTimeString([], {
           hour: "2-digit",
           minute: "2-digit",
         }),
+        team: user.team,
       };
       data.feed.unshift(autoPost);
+      if (data.feed.length > 60) data.feed.pop();
+
       saveDatabase();
 
-      io.emit(
-        "update_scoreboard",
-        data.users.map((u) => ({
+      io.emit("update_scoreboard", {
+        teams: data.teams,
+        users: data.users.map((u) => ({
           id: u.id,
           name: u.name,
+          team: u.team,
           points: u.points,
           role: u.role,
         })),
-      );
-      io.emit("update_tasks", data.tasks);
+      });
       io.emit("broadcast_post", autoPost);
     }
   });
 
-  // AZIONI RISERVATE ADMIN: Aggiungi nuova sfida live
+  // Admin: Aggiungi sfida
   socket.on("admin_add_task", ({ title, points, adminId }) => {
     const adminUser = data.users.find((u) => u.id === adminId);
     if (!adminUser || adminUser.role !== "admin") return;
@@ -188,47 +193,34 @@ io.on("connection", (socket) => {
       id: Date.now(),
       title: title.trim(),
       points: parseInt(points, 10) || 50,
-      completedBy: [],
     };
     data.tasks.push(newTask);
-
-    const autoPost = {
-      id: Date.now() + 1,
-      user: "⚡ Nuova Sfida Admin",
-      text: `Nuova prova aggiunta: "${newTask.title}" (+${newTask.points} pt)!`,
-      time: new Date().toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-    };
-    data.feed.unshift(autoPost);
     saveDatabase();
 
     io.emit("update_tasks", data.tasks);
-    io.emit("broadcast_post", autoPost);
   });
 
-  // AZIONI RISERVATE ADMIN: Assegna punti manuali
-  socket.on("admin_give_points", ({ targetUserId, amount, adminId }) => {
+  // Admin: Punti manuali alla squadra o al giocatore
+  socket.on("admin_give_team_points", ({ team, amount, adminId }) => {
     const adminUser = data.users.find((u) => u.id === adminId);
-    const target = data.users.find((u) => u.id === targetUserId);
-    if (!adminUser || adminUser.role !== "admin" || !target) return;
+    if (!adminUser || adminUser.role !== "admin" || !data.teams[team]) return;
 
-    target.points += parseInt(amount, 10) || 0;
+    data.teams[team].points += parseInt(amount, 10) || 0;
     saveDatabase();
-    io.emit(
-      "update_scoreboard",
-      data.users.map((u) => ({
+    io.emit("update_scoreboard", {
+      teams: data.teams,
+      users: data.users.map((u) => ({
         id: u.id,
         name: u.name,
+        team: u.team,
         points: u.points,
         role: u.role,
       })),
-    );
+    });
   });
 
-  // Nuovo post
-  socket.on("new_post", ({ user, text }) => {
+  // Post manuale nel feed
+  socket.on("new_post", ({ user, text, team }) => {
     if (!text || !text.trim()) return;
     const post = {
       id: Date.now(),
@@ -238,16 +230,15 @@ io.on("connection", (socket) => {
         hour: "2-digit",
         minute: "2-digit",
       }),
+      team: team || null,
     };
     data.feed.unshift(post);
-    if (data.feed.length > 50) data.feed.pop();
-
     saveDatabase();
     io.emit("broadcast_post", post);
   });
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, "0.0.0.0", () => {
-  console.log(`Server attivo sulla porta ${PORT}`);
-});
+server.listen(PORT, "0.0.0.0", () =>
+  console.log(`Server attivo sulla porta ${PORT}`),
+);

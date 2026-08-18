@@ -3,25 +3,40 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Bachelor Hub 🎉</title>
+    <title>Clash Dashboard ⚔️</title>
     <link rel="stylesheet" href="/css/style.css">
     <script src="/socket.io/socket.io.js"></script>
 </head>
 <body class="app-body">
+    <!-- Header Utente -->
     <header class="app-header">
         <div class="user-info">
             <span class="user-avatar" id="avatarIcon">😎</span>
             <div>
                 <strong id="userName">Ospite</strong>
-                <span class="user-badge" id="userRole">Membro</span>
+                <span class="user-badge" id="userTeamBadge">Nessuna Squadra</span>
             </div>
         </div>
         <div class="score-display">
             <span class="score-num" id="myPoints">0</span>
-            <span class="score-label">Punti</span>
+            <span class="score-label">Miei Pt</span>
         </div>
     </header>
 
+    <!-- Barra Scontro Squadre -->
+    <section class="clash-banner">
+        <div class="clash-team nubilers">
+            <span>💖 NUBILERS</span>
+            <strong id="nubilersPoints">0 pt</strong>
+        </div>
+        <div class="clash-vs">VS</div>
+        <div class="clash-team celibers">
+            <span>💙 CELIBERS</span>
+            <strong id="celibersPoints">0 pt</strong>
+        </div>
+    </section>
+
+    <!-- Nav Tabs -->
     <nav class="nav-bar">
         <button class="nav-item active" onclick="switchTab('tasks')">
             <span>🎯</span>
@@ -33,9 +48,8 @@
         </button>
         <button class="nav-item" onclick="switchTab('feed')">
             <span>💬</span>
-            <small>Live Feed</small>
+            <small>Feed</small>
         </button>
-        <!-- Pulsante visibile solo agli Admin -->
         <button class="nav-item" id="adminTabBtn" style="display: none;" onclick="switchTab('admin')">
             <span>⚙️</span>
             <small>Admin</small>
@@ -50,8 +64,8 @@
         <!-- Tab Sfide -->
         <section id="tab-tasks" class="tab-panel active">
             <div class="section-title">
-                <h2>Sfide & Penitenze</h2>
-                <p>Completa le prove per guadagnare punti e scalare la classifica!</p>
+                <h2>Sfide Ripetibili</h2>
+                <p>Ogni volta che completi una sfida guadagni punti per la tua squadra!</p>
             </div>
             <div id="taskList" class="task-list"></div>
         </section>
@@ -59,46 +73,43 @@
         <!-- Tab Classifica -->
         <section id="tab-ranking" class="tab-panel">
             <div class="section-title">
-                <h2>Classifica Live</h2>
-                <p>Chi sarà il vero MVP della serata?</p>
+                <h2>Top Contributors</h2>
+                <p>Classifica individuale per squadra</p>
             </div>
             <div id="rankingList" class="ranking-list"></div>
         </section>
 
-        <!-- Tab Live Feed -->
+        <!-- Tab Feed -->
         <section id="tab-feed" class="tab-panel">
             <div class="section-title">
-                <h2>Bacheca Live</h2>
-                <p>Condividi aggiornamenti in tempo reale con tutto il gruppo.</p>
+                <h2>Live Event Feed</h2>
             </div>
             <div class="feed-input-box">
-                <input type="text" id="feedInput" placeholder="Cosa sta succedendo?..." maxlength="150">
+                <input type="text" id="feedInput" placeholder="Messaggio o provocazione..." maxlength="140">
                 <button id="feedSendBtn" class="btn-send">Invia</button>
             </div>
             <div id="feedList" class="feed-list"></div>
         </section>
 
-        <!-- Tab Pannello Admin (Riservato) -->
+        <!-- Tab Admin -->
         <section id="tab-admin" class="tab-panel">
             <div class="section-title">
-                <h2>Pannello Organizzatori ⚙️</h2>
-                <p>Aggiungi sfide al volo o modifica i punti dei partecipanti.</p>
+                <h2>Pannello Admin ⚙️</h2>
             </div>
-
-            <!-- Box Creazione Sfida -->
             <div class="admin-card">
-                <h3>➕ Aggiungi Nuova Sfida</h3>
-                <input type="text" id="newTaskTitle" placeholder="Descrizione della sfida (es. Balla sul tavolo)">
-                <input type="number" id="newTaskPoints" placeholder="Punti (es. 100)" value="50">
-                <button class="btn-primary" onclick="adminCreateTask()">Pubblica Sfida</button>
+                <h3>➕ Crea Nuova Sfida</h3>
+                <input type="text" id="newTaskTitle" placeholder="Testo della sfida">
+                <input type="number" id="newTaskPoints" placeholder="Punti" value="50">
+                <button class="btn-primary" onclick="adminCreateTask()">Aggiungi Sfida</button>
             </div>
-
-            <!-- Box Gestione Punti -->
             <div class="admin-card">
-                <h3>⭐ Assegna / Togli Punti Manualmente</h3>
-                <select id="targetUserSelect"></select>
-                <input type="number" id="bonusPoints" placeholder="Punti (+50 o -20)">
-                <button class="btn-primary" onclick="adminAssignPoints()">Aggiorna Punti</button>
+                <h3>⭐ Bonus / Malus Squadra</h3>
+                <select id="adminTeamSelect">
+                    <option value="Nubilers">Nubilers</option>
+                    <option value="Celibers">Celibers</option>
+                </select>
+                <input type="number" id="adminTeamPoints" placeholder="Punti (+50 o -50)">
+                <button class="btn-primary" onclick="adminGiveTeamPoints()">Assegna</button>
             </div>
         </section>
     </main>
