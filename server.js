@@ -66,4 +66,6 @@ io.on('connection', (socket) => {
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`Server attivo su http://localhost:${PORT}`));
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server attivo sulla porta ${PORT}`);
+});
