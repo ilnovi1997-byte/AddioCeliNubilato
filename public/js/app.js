@@ -13,6 +13,7 @@ let currentTeams = { Nubilers: { points: 0 }, Celibers: { points: 0 } };
 let currentItinerary = [];
 let selectedDayFilter = "Tutti";
 let selectedTaskId = null;
+let editingTaskId = null;
 
 function getAvatarHtml(avatarUrl, extraClass = "") {
   if (avatarUrl) {
@@ -55,11 +56,13 @@ socket.on("init_data", (data) => {
   renderRanking();
   renderFeed();
   renderItinerary();
+  renderAdminTaskList();
 });
 
 socket.on("update_tasks", (tasks) => {
   currentTasks = tasks;
   renderTasks();
+  renderAdminTaskList();
 });
 
 socket.on("update_itinerary", (itinerary) => {
@@ -98,6 +101,67 @@ function renderTeams() {
     `${currentTeams.Nubilers.points} pt`;
   document.getElementById("celibersPoints").textContent =
     `${currentTeams.Celibers.points} pt`;
+}
+
+function renderTasks() {
+  const container = document.getElementById("taskList");
+  if (!container) return;
+
+  container.innerHTML = currentTasks
+    .map((t) => {
+      const adminControls =
+        currentUser.role === "admin"
+          ? `
+            <div class="task-admin-btns">
+                <button class="btn-action-small btn-edit" onclick="openEditTaskModal(${t.id})" title="Modifica Sfida">✏️</button>
+                <button class="btn-action-small btn-delete" onclick="adminDeleteTask(${t.id})" title="Elimina Sfida">🗑️</button>
+            </div>
+        `
+          : "";
+
+      return `
+            <div class="task-card">
+                <div class="task-content">
+                    <div class="task-title-row">
+                        <h4>${t.title}</h4>
+                        ${adminControls}
+                    </div>
+                    <span class="task-points">+${t.points} PT PER ${currentUser.team.toUpperCase()}</span>
+                </div>
+                <button class="btn-task" onclick="openTaskModal(${t.id})">
+                    Completa 📷
+                </button>
+            </div>
+        `;
+    })
+    .join("");
+}
+
+function renderAdminTaskList() {
+  const container = document.getElementById("adminTaskManagementList");
+  if (!container || currentUser.role !== "admin") return;
+
+  if (currentTasks.length === 0) {
+    container.innerHTML = `<p style="color: var(--text-muted); font-size: 0.8rem;">Nessuna sfida presente.</p>`;
+    return;
+  }
+
+  container.innerHTML = currentTasks
+    .map(
+      (t) => `
+        <div class="admin-task-row">
+            <div class="admin-task-row-info">
+                <strong>${t.title}</strong>
+                <small>${t.points} pt</small>
+            </div>
+            <div class="admin-task-row-actions">
+                <button class="btn-action-small btn-edit" onclick="openEditTaskModal(${t.id})">✏️ Modifica</button>
+                <button class="btn-action-small btn-delete" onclick="adminDeleteTask(${t.id})">🗑️</button>
+            </div>
+        </div>
+    `,
+    )
+    .join("");
 }
 
 function renderItinerary() {
@@ -151,25 +215,6 @@ function renderItinerary() {
             </div>
         `;
     })
-    .join("");
-}
-
-function renderTasks() {
-  const container = document.getElementById("taskList");
-  container.innerHTML = currentTasks
-    .map(
-      (t) => `
-        <div class="task-card">
-            <div class="task-content">
-                <h4>${t.title}</h4>
-                <span class="task-points">+${t.points} PT PER ${currentUser.team.toUpperCase()}</span>
-            </div>
-            <button class="btn-task" onclick="openTaskModal(${t.id})">
-                Completa 📷
-            </button>
-        </div>
-    `,
-    )
     .join("");
 }
 
@@ -315,6 +360,48 @@ window.submitTaskCompletion = async () => {
   } finally {
     confirmBtn.disabled = false;
     confirmBtn.textContent = "Conferma e Invia 🚀";
+  }
+};
+
+// Modal Modifica Sfida (Admin)
+window.openEditTaskModal = (taskId) => {
+  const task = currentTasks.find((t) => t.id === taskId);
+  if (!task) return;
+
+  editingTaskId = taskId;
+  document.getElementById("editTaskTitleInput").value = task.title;
+  document.getElementById("editTaskPointsInput").value = task.points;
+  document.getElementById("editTaskModal").style.display = "flex";
+};
+
+window.closeEditTaskModal = () => {
+  document.getElementById("editTaskModal").style.display = "none";
+  editingTaskId = null;
+};
+
+window.submitEditTask = () => {
+  if (!editingTaskId) return;
+  const title = document.getElementById("editTaskTitleInput").value;
+  const points = document.getElementById("editTaskPointsInput").value;
+
+  if (!title.trim()) return alert("Inserisci il titolo della sfida");
+
+  socket.emit("admin_edit_task", {
+    taskId: editingTaskId,
+    title: title,
+    points: points,
+    adminId: currentUser.id,
+  });
+
+  closeEditTaskModal();
+};
+
+window.adminDeleteTask = (taskId) => {
+  if (confirm("Sei sicuro di voler eliminare questa sfida?")) {
+    socket.emit("admin_delete_task", {
+      taskId: taskId,
+      adminId: currentUser.id,
+    });
   }
 };
 

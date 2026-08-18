@@ -23,7 +23,7 @@ cloudinary.config({
 // Multer in memoria RAM
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 40 * 1024 * 1024 }, // 40MB max
+  limits: { fileSize: 40 * 1024 * 1024 },
 });
 
 function uploadToCloudinary(buffer, isVideo, folder = "addio_celibato") {
@@ -127,6 +127,7 @@ if (fs.existsSync(DB_FILE)) {
       };
     }
     if (!data.itinerary) data.itinerary = [];
+    if (!data.tasks) data.tasks = [];
   } catch (e) {
     console.log("Inizializzazione database predefinito.");
   }
@@ -221,7 +222,7 @@ app.post("/api/upload-avatar", upload.single("avatar"), async (req, res) => {
   }
 });
 
-// Completamento Sfida con Upload Multimediale
+// Completamento Sfida con Upload Prova
 app.post("/api/complete-task", upload.single("media"), async (req, res) => {
   const { userId, taskId } = req.body;
   const user = data.users.find((u) => u.id === userId);
@@ -303,7 +304,7 @@ io.on("connection", (socket) => {
     feed: data.feed,
   });
 
-  // Sfide Admin
+  // Admin: Aggiungi Sfida
   socket.on("admin_add_task", ({ title, points, adminId }) => {
     const admin = data.users.find((u) => u.id === adminId);
     if (!admin || admin.role !== "admin") return;
@@ -317,7 +318,31 @@ io.on("connection", (socket) => {
     io.emit("update_tasks", data.tasks);
   });
 
-  // Punti Squadra Admin
+  // Admin: Modifica Sfida
+  socket.on("admin_edit_task", ({ taskId, title, points, adminId }) => {
+    const admin = data.users.find((u) => u.id === adminId);
+    if (!admin || admin.role !== "admin") return;
+
+    const task = data.tasks.find((t) => t.id === taskId);
+    if (task) {
+      task.title = title.trim();
+      task.points = parseInt(points, 10) || task.points;
+      saveDatabase();
+      io.emit("update_tasks", data.tasks);
+    }
+  });
+
+  // Admin: Elimina Sfida
+  socket.on("admin_delete_task", ({ taskId, adminId }) => {
+    const admin = data.users.find((u) => u.id === adminId);
+    if (!admin || admin.role !== "admin") return;
+
+    data.tasks = data.tasks.filter((t) => t.id !== taskId);
+    saveDatabase();
+    io.emit("update_tasks", data.tasks);
+  });
+
+  // Admin: Punti Squadra
   socket.on("admin_give_team_points", ({ team, amount, adminId }) => {
     const admin = data.users.find((u) => u.id === adminId);
     if (!admin || admin.role !== "admin" || !data.teams[team]) return;
@@ -327,7 +352,7 @@ io.on("connection", (socket) => {
     io.emit("update_scoreboard", { teams: data.teams, users: data.users });
   });
 
-  // Moderazione Feed Admin
+  // Admin: Moderazione Feed
   socket.on("admin_delete_post", ({ postId, adminId }) => {
     const adminUser = data.users.find((u) => u.id === adminId);
     if (!adminUser || adminUser.role !== "admin") return;
@@ -337,7 +362,7 @@ io.on("connection", (socket) => {
     io.emit("feed_updated", data.feed);
   });
 
-  // Gestione Itinerario Admin
+  // Admin: Itinerario
   socket.on(
     "admin_add_itinerary",
     ({ day, time, title, description, location, adminId }) => {
@@ -372,7 +397,7 @@ io.on("connection", (socket) => {
     io.emit("update_itinerary", data.itinerary);
   });
 
-  // Messaggio Feed
+  // Feed Post
   socket.on("new_post", ({ userId, user, text, team }) => {
     if (!text || !text.trim()) return;
     const author = data.users.find((u) => u.id === userId);
