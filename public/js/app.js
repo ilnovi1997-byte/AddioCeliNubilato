@@ -110,6 +110,8 @@ function renderRanking() {
 
 function renderFeed() {
   const container = document.getElementById("feedList");
+  if (!container) return;
+
   container.innerHTML = currentFeed
     .map((p) => {
       const teamTag = p.team
@@ -117,12 +119,13 @@ function renderFeed() {
         : "";
 
       let mediaHtml = "";
-      if (p.media) {
+      if (p.media && p.media.url) {
         if (p.media.type === "video") {
           mediaHtml = `
                     <div class="feed-media-wrapper">
                         <video controls playsinline preload="metadata" class="feed-media">
                             <source src="${p.media.url}">
+                            Il tuo browser non supporta la riproduzione video.
                         </video>
                     </div>`;
         } else {

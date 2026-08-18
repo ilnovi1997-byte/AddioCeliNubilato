@@ -144,20 +144,40 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
 // Endpoint Proxy per servire foto e video da Google Drive in streaming diretto
+// Endpoint Proxy ottimizzato per streaming immagini e video da Google Drive
 app.get("/api/media/:fileId", async (req, res) => {
-  if (!driveClient) return res.status(503).send("Drive non pronto");
+  if (!driveClient) return res.status(503).send("Google Drive non configurato");
+
   try {
     const fileId = req.params.fileId;
+
+    // 1. Recupera i metadati per impostare il Content-Type corretto
+    const meta = await driveClient.files.get({
+      fileId: fileId,
+      fields: "mimeType, size",
+    });
+
+    res.setHeader(
+      "Content-Type",
+      meta.data.mimeType || "application/octet-stream",
+    );
+    if (meta.data.size) {
+      res.setHeader("Content-Length", meta.data.size);
+    }
+    res.setHeader("Cache-Control", "public, max-age=86400"); // Cache 24h per velocizzare il caricamento
+
+    // 2. Esegui lo stream del file
     const driveRes = await driveClient.files.get(
       { fileId: fileId, alt: "media" },
       { responseType: "stream" },
     );
+
     driveRes.data.pipe(res);
   } catch (err) {
+    console.error("Errore recupero media da Drive:", err.message);
     res.status(404).send("Media non trovato");
   }
 });
-
 app.post("/api/login", (req, res) => {
   const { name, pin, adminCode } = req.body;
   if (!name || !pin) return res.status(400).json({ error: "Dati mancanti" });
